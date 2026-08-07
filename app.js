@@ -417,7 +417,7 @@ function renderHeute() {
     const straehne = state.straehnen[g.id] || 0;
     const st = document.createElement("span");
     st.className = "straehne" + (straehne > 0 ? " aktiv" : "");
-    st.textContent = straehne > 0 ? `🔥 ${straehne} Tage` : "keine Strähne";
+    st.textContent = straehne > 0 ? `🔥 ${straehne} Tage` : "keine Flamme";
     zeile.appendChild(st);
 
     haupt.appendChild(zeile);
@@ -444,6 +444,16 @@ function renderHeute() {
       eingabe.setAttribute("aria-label", `${g.name}: Menge für heute`);
       // change statt input: sonst schiesst jeder Tastendruck eine Anfrage ab.
       eingabe.onchange = () => setzeTag(g, state.heute, Number(eingabe.value));
+
+      const minus = document.createElement("button");
+      minus.type = "button";
+      minus.className = "menge-minus";
+      minus.textContent = "−";
+      minus.title = "Um 1 verringern";
+      minus.setAttribute("aria-label", `${g.name}: Menge um 1 verringern`);
+      minus.onclick = () => setzeTag(g, state.heute, Math.max(0, menge - 1));
+      feld.appendChild(minus);
+
       feld.appendChild(eingabe);
 
       const plus = document.createElement("button");
@@ -502,7 +512,7 @@ async function setzeTag(gewohnheit, datum, menge) {
   // Nur melden, wenn die Straehne durch einen NACHGETRAGENEN Tag gewachsen
   // ist - beim normalen Abhaken von heute sieht man die Zahl ohnehin.
   if (datum !== state.heute && d.straehne > vorher) {
-    melde(`${formatDatum(datum)} nachgetragen — Strähne jetzt ${d.straehne} Tage`);
+    melde(`${formatDatum(datum)} nachgetragen — Flamme jetzt ${d.straehne} Tage`);
   }
   return true;
 }
@@ -926,11 +936,19 @@ function oeffneTagDialog(gewohnheit, datum) {
     : "1 = erledigt, 0 = offen";
   $("tagMenge").value = String(tag ? tag.menge : 0);
   $("tagMenge").max = gewohnheit.typ === "binaer" ? "1" : "";
+  $("tagMinus").hidden = gewohnheit.typ !== "menge";
+  $("tagPlus").hidden = gewohnheit.typ !== "menge";
   $("tagPopup").hidden = false;
   $("tagMenge").focus();
   $("tagMenge").select();
 }
 
+$("tagMinus").onclick = () => {
+  $("tagMenge").value = String(Math.max(0, Number($("tagMenge").value) - 1));
+};
+$("tagPlus").onclick = () => {
+  $("tagMenge").value = String(Number($("tagMenge").value) + 1);
+};
 $("tagAbbrechen").onclick = () => { $("tagPopup").hidden = true; };
 $("tagSpeichern").onclick = async () => {
   const menge = Number($("tagMenge").value);

@@ -167,7 +167,11 @@
     <p id="tagDatum"></p>
     <div class="popup-feld">
       <label for="tagMenge" id="tagLabel">Menge</label>
-      <input type="number" id="tagMenge" min="0" step="1">
+      <div class="menge-feld">
+        <button type="button" class="menge-minus" id="tagMinus" aria-label="Um 1 verringern" hidden>−</button>
+        <input type="number" id="tagMenge" min="0" step="1">
+        <button type="button" class="menge-plus" id="tagPlus" aria-label="Um 1 erhöhen" hidden>+</button>
+      </div>
     </div>
     <p class="lock-msg" id="tagMsg" aria-live="polite"></p>
     <div class="popup-knoepfe">
