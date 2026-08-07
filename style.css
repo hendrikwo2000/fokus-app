@@ -1,0 +1,481 @@
+/* Fokus-Tracker.
+   Farbwerte und die Bausteine fuer Anmeldemaske, Knoepfe, Dialoge und
+   Schnipsel-Hinweis sind woertlich aus der ToDo-Liste uebernommen, damit sich
+   beide Apps wie eine Familie anfuehlen. Neu ist alles ab "Reiter". */
+
+:root {
+  --bg: #f4f5f7;
+  --col-bg: #ebedf2;
+  --row: #ffffff;
+  --text: #1f2430;
+  --muted: #828a9c;
+  --line: #e3e6ee;
+  --accent: #4f63d2;
+  --accent-soft: #eef1fc;
+  --green: #2f9e69;
+  --red: #d6453d;
+  --yellow: #e0a72c;
+  --hover: rgba(0, 0, 0, .06);
+  --leer: #e7e9f0;
+  --del-soft: #fbe3e1;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #15171c;
+  --col-bg: #1d2026;
+  --row: #262a31;
+  --text: #e6e8ee;
+  --muted: #8b93a5;
+  --line: #333842;
+  --accent: #7e8ff2;
+  --accent-soft: #2b3350;
+  --green: #46b27e;
+  --red: #e5615a;
+  --yellow: #e8bb4e;
+  --hover: rgba(255, 255, 255, .08);
+  --leer: #313641;
+  --del-soft: #4a2522;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.4;
+  transition: background .2s, color .2s;
+}
+
+body {
+  padding: max(16px, env(safe-area-inset-top)) 16px 40px;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+/* ---------- Knoepfe und Felder ---------- */
+.btn {
+  border: 1px solid var(--line);
+  background: var(--row);
+  color: var(--text);
+  padding: 7px 13px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover { filter: brightness(1.06); color: #fff; }
+.btn.icon-only { padding: 7px 10px; font-size: 16px; line-height: 1; }
+.btn.klein { padding: 5px 10px; font-size: 12.5px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:disabled:hover { border-color: var(--line); color: var(--text); }
+/* Gedeckt, nicht knallrot: der Knopf soll warnen, aber nicht staerker ziehen
+   als der harmlose Hauptknopf daneben. */
+.btn.gefahr { color: var(--red); border-color: var(--del-soft); }
+.btn.gefahr:hover { background: var(--red); border-color: var(--red); color: #fff; filter: none; }
+
+input[type="text"],
+input[type="number"] {
+  border: 1px solid var(--line);
+  background: var(--row);
+  color: var(--text);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+
+/* ---------- Kopfzeile und Reiter ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.topbar h1 { font-size: 21px; margin: 0; flex: 1; }
+#einstellungenBtn[hidden] { display: none; }
+
+.reiter {
+  display: flex;
+  gap: 4px;
+  background: var(--col-bg);
+  padding: 4px;
+  border-radius: 11px;
+  margin-bottom: 18px;
+}
+.reiter button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 4px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.reiter button[aria-selected="true"] { background: var(--row); color: var(--text); }
+
+.ansicht[hidden] { display: none; }
+
+/* ---------- Tagesansicht ---------- */
+.gew-liste { display: flex; flex-direction: column; gap: 9px; }
+
+.gew {
+  background: var(--row);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* Der farbige Rand links traegt den Status - er bleibt sichtbar, wenn man die
+   Liste ueberfliegt, ohne die Zahlen zu lesen. */
+.gew.erledigt { border-left: 4px solid var(--green); }
+.gew.teilweise { border-left: 4px solid var(--yellow); }
+.gew.offen { border-left: 4px solid var(--leer); }
+
+.gew-haupt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.gew-name { font-weight: 600; overflow-wrap: anywhere; }
+.gew-zeile { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+
+.straehne { white-space: nowrap; }
+.straehne.aktiv { color: var(--accent); font-weight: 600; }
+
+.balken { height: 6px; border-radius: 3px; background: var(--leer); overflow: hidden; }
+.balken > i { display: block; height: 100%; border-radius: 3px; background: var(--yellow); transition: width .2s; }
+.gew.erledigt .balken > i { background: var(--green); }
+
+/* Grosses Haekchen fuer binaere Gewohnheiten. Mindestens 44px, damit es am
+   Handy sicher zu treffen ist. */
+.haken {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.haken:hover { border-color: var(--accent); color: var(--accent); }
+.haken.an { background: var(--green); border-color: var(--green); color: #fff; }
+
+.menge-feld { display: flex; align-items: center; gap: 6px; }
+.menge-feld input { width: 72px; text-align: center; }
+
+.leer-hinweis {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 34px 10px;
+}
+
+/* ---------- Verlaufsraster ---------- */
+/* Quer scrollbar, weil 35 Tage nebeneinander auf kein Handy passen. Der
+   Container scrollt, nicht die Seite - sonst waere die ganze App verschoben. */
+.raster-huelle { overflow-x: auto; padding-bottom: 6px; }
+.raster {
+  display: grid;
+  gap: 3px;
+  width: max-content;
+  min-width: 100%;
+}
+.raster-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  padding-right: 10px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  position: sticky;
+  left: 0;
+  background: var(--bg);
+  z-index: 1;
+}
+.raster-kopf {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  height: 14px;
+}
+.raster-zelle {
+  width: 18px; height: 18px;
+  border-radius: 4px;
+  border: 0;
+  padding: 0;
+  background: var(--leer);
+  cursor: pointer;
+  transition: transform .1s;
+}
+.raster-zelle:hover { transform: scale(1.25); }
+.raster-zelle.erledigt { background: var(--green); }
+.raster-zelle.teilweise { background: var(--yellow); }
+.raster-zelle.heute { box-shadow: 0 0 0 2px var(--accent); }
+/* Zukunft: nicht anklickbar und kaum sichtbar - sie soll nicht wie ein
+   verpasster Tag aussehen. */
+.raster-zelle.zukunft { opacity: .25; cursor: default; }
+.raster-zelle.zukunft:hover { transform: none; }
+
+.legende {
+  display: flex; gap: 14px; justify-content: center;
+  margin-top: 16px; font-size: 12px; color: var(--muted);
+}
+.legende span { display: flex; align-items: center; gap: 5px; }
+.legende i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+
+/* ---------- Fokus-Timer ---------- */
+.timer {
+  background: var(--row);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 28px 20px;
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.timer-zeit {
+  font-size: 58px;
+  font-weight: 700;
+  line-height: 1.05;
+  /* Tabellenziffern: ohne sie huepft die Anzeige bei jedem Sekundenwechsel,
+     weil die 1 schmaler ist als die anderen Ziffern. */
+  font-variant-numeric: tabular-nums;
+}
+.timer-zeit.pausiert { color: var(--muted); }
+.timer-info { font-size: 13px; color: var(--muted); min-height: 1.3em; }
+.timer-ring {
+  width: 100%; height: 6px; border-radius: 3px;
+  background: var(--leer); overflow: hidden; margin: 10px 0 4px;
+}
+.timer-ring > i { display: block; height: 100%; background: var(--accent); transition: width .5s linear; }
+.timer-knoepfe { display: flex; gap: 8px; margin-top: 10px; }
+.timer-knoepfe .btn { min-width: 96px; justify-content: center; }
+
+.stat-zahlen {
+  display: flex; gap: 10px; margin: 22px 0 14px;
+}
+.stat-kachel {
+  flex: 1;
+  background: var(--row);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 8px;
+  text-align: center;
+}
+.stat-wert { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat-name { font-size: 11.5px; color: var(--muted); }
+
+.balken-diagramm {
+  display: flex; align-items: flex-end; gap: 6px;
+  height: 110px;
+  padding: 0 2px;
+}
+.balken-spalte { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; height: 100%; }
+.balken-saeule {
+  border-radius: 5px 5px 0 0;
+  background: var(--accent-soft);
+  min-height: 3px;
+  transition: height .2s;
+}
+.balken-spalte.jetzt .balken-saeule { background: var(--accent); }
+.balken-wert { font-size: 10px; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+.balken-namen { display: flex; gap: 6px; margin-top: 5px; }
+.balken-namen > span { flex: 1; text-align: center; font-size: 10px; color: var(--muted); }
+
+.abschnitt-titel {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--muted);
+  margin: 26px 0 8px;
+}
+
+/* ---------- Anmeldemaske ---------- */
+.lock {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+.lock.hidden { display: none; }
+.lock-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(320px, 90vw);
+  padding: 28px 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--row);
+  text-align: center;
+}
+/* display:flex oben schlaegt sonst das eingebaute [hidden] des Browsers. */
+.lock-box[hidden] { display: none; }
+.lock-icon { font-size: 32px; line-height: 1; }
+.lock-box h2 { margin: 0; font-size: 18px; }
+.lock-hint { margin: 0; font-size: 12.5px; color: var(--muted); }
+.lock-box input {
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font: inherit;
+  text-align: center;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.lock-box input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.lock-box button {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lock-box button:hover { filter: brightness(1.06); }
+.lock-msg { min-height: 1.2em; font-size: 12.5px; color: var(--red); }
+.lock-msg.ok { color: var(--green); }
+/* Sieht aus wie ein Link, ist aber ein Knopf (Tastaturbedienung, kein
+   Ziel-Dokument). Mit .lock-box davor, sonst gewinnt ".lock-box button". */
+.lock-box .lock-link {
+  background: none;
+  border: 0;
+  padding: 4px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.lock-box .lock-link:hover { color: var(--accent); }
+.lock-box .lock-link[hidden] { display: none; }
+
+/* ---------- Modale Dialoge ---------- */
+.popup {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .45);
+  padding: 20px;
+}
+.popup[hidden] { display: none; }
+.popup-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, 100%);
+  max-height: min(84vh, 680px);
+  overflow-y: auto;
+  padding: 26px 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--row);
+  text-align: center;
+}
+.popup-icon { font-size: 30px; line-height: 1; }
+.popup-box h2 { margin: 0; font-size: 18px; }
+.popup-box p { margin: 0; font-size: 13px; color: var(--muted); }
+.popup-box .btn { display: inline-flex; justify-content: center; padding: 10px 12px; }
+.popup-box .lock-link {
+  background: none; border: 0; padding: 4px;
+  font: inherit; font-size: 12.5px; color: var(--muted); cursor: pointer;
+}
+.popup-box .lock-link:hover { color: var(--text); }
+.popup-feld { display: flex; flex-direction: column; gap: 4px; text-align: left; }
+.popup-reihe { display: flex; gap: 8px; }
+.popup-reihe > * { flex: 1; min-width: 0; }
+.popup-knoepfe { display: flex; gap: 8px; margin-top: 6px; }
+.popup-knoepfe .btn { flex: 1; }
+
+.wahl { display: flex; gap: 6px; }
+.wahl button {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: var(--row);
+  color: var(--muted);
+  font: inherit; font-size: 13px; font-weight: 600;
+  padding: 9px 6px; border-radius: 9px; cursor: pointer;
+  transition: all .15s;
+}
+.wahl button[aria-pressed="true"] {
+  border-color: var(--accent); background: var(--accent-soft); color: var(--accent);
+}
+
+.archiv-zeile {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 0; border-top: 1px solid var(--line);
+  text-align: left;
+}
+.archiv-zeile > span { flex: 1; font-size: 14px; overflow-wrap: anywhere; }
+
+.abschnitt {
+  display: flex; flex-direction: column; gap: 10px;
+  padding-top: 16px; margin-top: 4px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+.abschnitt[hidden] { display: none; }
+.abschnitt h3 {
+  margin: 0; font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+}
+.hinweis { font-size: 12px; color: var(--muted); margin: 0; }
+
+/* ---------- Kurzmeldung unten ---------- */
+.snackbar {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%) translateY(20px);
+  background: #2b2f37;
+  color: #fff;
+  padding: 11px 16px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .28);
+  font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s, transform .18s;
+  z-index: 150;
+}
+.snackbar.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }

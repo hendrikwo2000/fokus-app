@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#4f63d2">
+<title>Fokus</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Fokus</h1>
+  <button class="btn icon-only" id="themaBtn" title="Hell/Dunkel" hidden>☾</button>
+  <button class="btn icon-only" id="einstellungenBtn" title="Einstellungen" hidden>⚙️</button>
+</div>
+
+<nav class="reiter" id="reiter" hidden>
+  <button data-ansicht="heute"   aria-selected="true">Heute</button>
+  <button data-ansicht="verlauf" aria-selected="false">Verlauf</button>
+  <button data-ansicht="fokus"   aria-selected="false">Fokus</button>
+</nav>
+
+<!-- ---------- Heute ---------- -->
+<section class="ansicht" id="ansichtHeute" hidden>
+  <div class="gew-liste" id="heuteListe"></div>
+  <div style="margin-top:14px; text-align:center;">
+    <button class="btn" id="neueGewohnheitBtn">＋ Gewohnheit</button>
+  </div>
+</section>
+
+<!-- ---------- Verlauf ---------- -->
+<section class="ansicht" id="ansichtVerlauf" hidden>
+  <div class="raster-huelle">
+    <div class="raster" id="raster"></div>
+  </div>
+  <div class="legende">
+    <span><i style="background:var(--leer)"></i>offen</span>
+    <span><i style="background:var(--yellow)"></i>teilweise</span>
+    <span><i style="background:var(--green)"></i>erledigt</span>
+  </div>
+  <p class="hinweis" style="text-align:center; margin-top:12px;">
+    Tippe auf einen Tag, um ihn nachzutragen.
+  </p>
+</section>
+
+<!-- ---------- Fokus ---------- -->
+<section class="ansicht" id="ansichtFokus" hidden>
+  <div class="timer">
+    <div class="timer-zeit" id="timerZeit">25:00</div>
+    <div class="timer-info" id="timerInfo"></div>
+    <div class="timer-ring"><i id="timerRing" style="width:0%"></i></div>
+    <div class="timer-knoepfe" id="timerKnoepfe">
+      <button class="btn primary" id="startBtn">Start</button>
+      <button class="btn" id="pauseBtn" hidden>Pause</button>
+      <button class="btn gefahr" id="stopBtn" hidden>Stopp</button>
+    </div>
+  </div>
+
+  <div class="stat-zahlen">
+    <div class="stat-kachel"><div class="stat-wert" id="statHeute">0</div><div class="stat-name">Min. heute</div></div>
+    <div class="stat-kachel"><div class="stat-wert" id="statWoche">0</div><div class="stat-name">Min. diese Woche</div></div>
+    <div class="stat-kachel"><div class="stat-wert" id="statSchnitt">0</div><div class="stat-name">Schnitt/Woche</div></div>
+  </div>
+
+  <div class="abschnitt-titel">Fokusminuten pro Woche</div>
+  <div class="balken-diagramm" id="diagramm"></div>
+  <div class="balken-namen" id="diagrammNamen"></div>
+</section>
+
+<!-- ---------- Anmeldemaske ---------- -->
+<div id="lock" class="lock hidden">
+  <form id="lockForm" class="lock-box">
+    <div class="lock-icon">🔒</div>
+    <h2>Fokus</h2>
+    <p class="lock-hint" id="lockHint">Mit deiner E-Mail-Adresse anmelden.</p>
+    <input type="email" id="lockEmail" placeholder="E-Mail-Adresse" autocomplete="email">
+    <input type="text" id="lockCode" placeholder="6-stelliger Code" inputmode="numeric"
+           pattern="[0-9]*" autocomplete="one-time-code" hidden>
+    <button type="submit">Anmeldelink anfordern</button>
+    <div id="lockMsg" class="lock-msg" aria-live="polite"></div>
+  </form>
+  <!-- Angemeldet, aber nicht freigeschaltet. Eigener Kasten statt einer Zeile
+       in der Maske: hier hilft kein zweiter Anmeldeversuch. -->
+  <div id="lockGesperrt" class="lock-box" hidden>
+    <div class="lock-icon">⛔</div>
+    <h2>Kein Zugang</h2>
+    <p class="lock-hint" id="lockGesperrtText"></p>
+    <button type="button" class="lock-link" id="lockAbmelden">Abmelden</button>
+  </div>
+</div>
+
+<!-- ---------- Dialoge ---------- -->
+<div class="popup" id="gewPopup" hidden>
+  <div class="popup-box">
+    <div class="popup-icon" id="gewIcon">✨</div>
+    <h2 id="gewTitel">Neue Gewohnheit</h2>
+    <div class="popup-feld">
+      <label for="gewName">Name</label>
+      <input type="text" id="gewName" maxlength="60" placeholder="z. B. Lesen">
+    </div>
+    <div class="popup-feld" id="gewTypFeld">
+      <label>Art</label>
+      <div class="wahl" id="gewTyp">
+        <button type="button" data-typ="binaer" aria-pressed="true">Abhaken</button>
+        <button type="button" data-typ="menge" aria-pressed="false">Mit Zielmenge</button>
+      </div>
+    </div>
+    <div class="popup-reihe" id="gewZielFeld" hidden>
+      <div class="popup-feld">
+        <label for="gewZiel">Ziel pro Tag</label>
+        <input type="number" id="gewZiel" min="1" step="1" value="30">
+      </div>
+      <div class="popup-feld">
+        <label for="gewEinheit">Einheit</label>
+        <input type="text" id="gewEinheit" maxlength="12" placeholder="Min">
+      </div>
+    </div>
+    <p class="lock-msg" id="gewMsg" aria-live="polite"></p>
+    <div class="popup-knoepfe">
+      <button class="btn" id="gewAbbrechen">Abbrechen</button>
+      <button class="btn primary" id="gewSpeichern">Speichern</button>
+    </div>
+    <button type="button" class="lock-link" id="gewArchivieren" hidden>Archivieren</button>
+  </div>
+</div>
+
+<div class="popup" id="tagPopup" hidden>
+  <div class="popup-box">
+    <div class="popup-icon">📅</div>
+    <h2 id="tagTitel">Tag nachtragen</h2>
+    <p id="tagDatum"></p>
+    <div class="popup-feld">
+      <label for="tagMenge" id="tagLabel">Menge</label>
+      <input type="number" id="tagMenge" min="0" step="1">
+    </div>
+    <p class="lock-msg" id="tagMsg" aria-live="polite"></p>
+    <div class="popup-knoepfe">
+      <button class="btn" id="tagAbbrechen">Abbrechen</button>
+      <button class="btn primary" id="tagSpeichern">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<div class="popup" id="einPopup" hidden>
+  <div class="popup-box">
+    <div class="popup-icon">⚙️</div>
+    <h2>Einstellungen</h2>
+
+    <div class="abschnitt">
+      <h3>Fokus-Timer</h3>
+      <div class="popup-feld">
+        <label for="einDauer">Standarddauer in Minuten</label>
+        <input type="number" id="einDauer" min="1" max="180" step="1">
+      </div>
+      <p class="hinweis">Gilt ab der nächsten Sitzung.</p>
+      <button class="btn" id="einDauerSpeichern">Dauer speichern</button>
+    </div>
+
+    <div class="abschnitt">
+      <h3>Erinnerung am Sitzungsende</h3>
+      <p class="hinweis" id="einBenachrichtigungText"></p>
+      <button class="btn" id="einBenachrichtigung">Benachrichtigungen erlauben</button>
+    </div>
+
+    <div class="abschnitt" id="archivAbschnitt">
+      <h3>Archiv</h3>
+      <div id="archivListe"></div>
+      <p class="hinweis" id="archivLeer">Noch nichts archiviert.</p>
+    </div>
+
+    <div class="abschnitt">
+      <h3>Konto</h3>
+      <p class="hinweis" id="einKonto"></p>
+      <p class="hinweis">Abmelden meldet dich auch aus der ToDo-Liste ab — es ist dieselbe Sitzung.</p>
+      <button class="btn gefahr" id="einAbmelden">Abmelden</button>
+    </div>
+
+    <button type="button" class="lock-link" id="einSchliessen">Schließen</button>
+  </div>
+</div>
+
+<div class="popup" id="fragePopup" hidden>
+  <div class="popup-box">
+    <div class="popup-icon" id="frageIcon">⚠️</div>
+    <h2 id="frageTitel"></h2>
+    <p id="frageText"></p>
+    <div class="popup-knoepfe">
+      <button class="btn" id="frageNein">Abbrechen</button>
+      <button class="btn gefahr" id="frageJa">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<div class="snackbar" id="snackbar"><span id="snackbarText"></span></div>
+
+<script src="app.js"></script>
+</body>
+</html>
