@@ -168,10 +168,14 @@
     <p id="tagDatum"></p>
     <div class="popup-feld">
       <label for="tagMenge" id="tagLabel">Menge</label>
-      <div class="menge-feld">
-        <button type="button" class="menge-minus" id="tagMinus" aria-label="Um 1 verringern" hidden>−</button>
+      <div class="menge-feld" id="tagMengeFeld">
+        <button type="button" class="menge-minus" id="tagMinus" aria-label="Um 1 verringern">−</button>
         <input type="number" id="tagMenge" min="0" step="1">
-        <button type="button" class="menge-plus" id="tagPlus" aria-label="Um 1 erhöhen" hidden>+</button>
+        <button type="button" class="menge-plus" id="tagPlus" aria-label="Um 1 erhöhen">+</button>
+      </div>
+      <div class="wahl" id="tagStatus" hidden>
+        <button type="button" data-wert="0">Offen</button>
+        <button type="button" data-wert="1">Erledigt</button>
       </div>
     </div>
     <p class="lock-msg" id="tagMsg" aria-live="polite"></p>

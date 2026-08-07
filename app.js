@@ -941,16 +941,38 @@ function oeffneTagDialog(gewohnheit, datum) {
   $("tagTitel").textContent = gewohnheit.name;
   $("tagDatum").textContent = `${wochentagVon(datum)}, ${formatDatum(datum)}`;
   $("tagMsg").textContent = "";
-  $("tagLabel").textContent = gewohnheit.typ === "menge"
+
+  const istMenge = gewohnheit.typ === "menge";
+  $("tagLabel").textContent = istMenge
     ? (gewohnheit.einheit ? `Menge in ${gewohnheit.einheit} (Ziel ${ziel})` : `Menge (Ziel ${ziel})`)
-    : "1 = erledigt, 0 = offen";
-  $("tagMenge").value = String(tag ? tag.menge : 0);
-  $("tagMenge").max = gewohnheit.typ === "binaer" ? "1" : "";
-  $("tagMinus").hidden = gewohnheit.typ !== "menge";
-  $("tagPlus").hidden = gewohnheit.typ !== "menge";
+    : "Status";
+  const wert = tag ? tag.menge : 0;
+  $("tagMenge").value = String(wert);
+  $("tagMengeFeld").hidden = !istMenge;
+  $("tagStatus").hidden = istMenge;
+
   $("tagPopup").hidden = false;
-  $("tagMenge").focus();
-  $("tagMenge").select();
+  if (istMenge) {
+    $("tagMenge").focus();
+    $("tagMenge").select();
+  } else {
+    // Abhaken statt Zahl eintippen: die Wahl spiegelt den aktuellen Stand,
+    // ein Klick auf die andere Seite reicht zum Umschalten.
+    const erledigt = wert >= 1 ? "1" : "0";
+    for (const knopf of $("tagStatus").querySelectorAll("button")) {
+      knopf.setAttribute("aria-pressed", String(knopf.dataset.wert === erledigt));
+    }
+    $("tagStatus").querySelector(`button[data-wert="${erledigt}"]`).focus();
+  }
+}
+
+for (const knopf of $("tagStatus").querySelectorAll("button")) {
+  knopf.onclick = () => {
+    $("tagMenge").value = knopf.dataset.wert;
+    for (const b of $("tagStatus").querySelectorAll("button")) {
+      b.setAttribute("aria-pressed", String(b === knopf));
+    }
+  };
 }
 
 $("tagMinus").onclick = () => {
