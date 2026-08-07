@@ -2,7 +2,10 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- maximum-scale/user-scalable bewusst aus: Doppeltippen zum Bearbeiten
+     (siehe app.js, .gew-haupt) kollidiert sonst mit dem Zoom-Gesture des
+     Browsers auf dem Handy. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#4f63d2">
 <title>Fokus</title>
@@ -15,7 +18,6 @@
 
 <div class="topbar">
   <h1>Fokus</h1>
-  <button class="btn icon-only" id="themaBtn" title="Hell/Dunkel" hidden>☾</button>
   <button class="btn icon-only" id="einstellungenBtn" title="Einstellungen" hidden>⚙️</button>
 </div>
 
@@ -35,13 +37,18 @@
 
 <!-- ---------- Verlauf ---------- -->
 <section class="ansicht" id="ansichtVerlauf" hidden>
-  <div class="raster-huelle">
-    <div class="raster" id="raster"></div>
+  <div class="kal-wahl" id="kalWahl"></div>
+  <div class="kal-kopf">
+    <button class="btn icon-only" id="kalZurueck" title="Vorheriger Monat">‹</button>
+    <div class="kal-monat" id="kalMonat"></div>
+    <button class="btn icon-only" id="kalVor" title="Nächster Monat">›</button>
   </div>
+  <div class="kal-raster" id="kalender"></div>
   <div class="legende">
     <span><i style="background:var(--leer)"></i>offen</span>
     <span><i style="background:var(--yellow)"></i>teilweise</span>
     <span><i style="background:var(--green)"></i>erledigt</span>
+    <span id="kalLegendeGeplant" hidden><i class="kal-nicht-geplant-swatch"></i>nicht geplant</span>
   </div>
   <p class="hinweis" style="text-align:center; margin-top:12px;">
     Tippe auf einen Tag, um ihn nachzutragen.
@@ -116,9 +123,33 @@
         <input type="number" id="gewZiel" min="1" step="1" value="30">
       </div>
       <div class="popup-feld">
-        <label for="gewEinheit">Einheit</label>
-        <input type="text" id="gewEinheit" maxlength="12" placeholder="Min">
+        <label for="gewEinheit">Einheit (optional)</label>
+        <input type="text" id="gewEinheit" maxlength="12" placeholder="z. B. Min">
       </div>
+    </div>
+    <div class="popup-feld">
+      <label>Rhythmus</label>
+      <div class="wahl" id="gewRhythmus">
+        <button type="button" data-rhythmus="taeglich" aria-pressed="true">Täglich</button>
+        <button type="button" data-rhythmus="wochentage" aria-pressed="false">Feste Wochentage</button>
+        <button type="button" data-rhythmus="x_pro_woche" aria-pressed="false">X Mal die Woche</button>
+      </div>
+    </div>
+    <div class="popup-feld" id="gewWochentageFeld" hidden>
+      <label>Welche Wochentage</label>
+      <div class="wahl wahl-wochentage" id="gewWochentage">
+        <button type="button" data-tag="0" aria-pressed="false">Mo</button>
+        <button type="button" data-tag="1" aria-pressed="false">Di</button>
+        <button type="button" data-tag="2" aria-pressed="false">Mi</button>
+        <button type="button" data-tag="3" aria-pressed="false">Do</button>
+        <button type="button" data-tag="4" aria-pressed="false">Fr</button>
+        <button type="button" data-tag="5" aria-pressed="false">Sa</button>
+        <button type="button" data-tag="6" aria-pressed="false">So</button>
+      </div>
+    </div>
+    <div class="popup-feld" id="gewWochenzielFeld" hidden>
+      <label for="gewWochenziel">Wie oft pro Woche</label>
+      <input type="number" id="gewWochenziel" min="1" max="7" step="1" value="3">
     </div>
     <p class="lock-msg" id="gewMsg" aria-live="polite"></p>
     <div class="popup-knoepfe">
@@ -150,6 +181,11 @@
   <div class="popup-box">
     <div class="popup-icon">⚙️</div>
     <h2>Einstellungen</h2>
+
+    <div class="abschnitt">
+      <h3>Darstellung</h3>
+      <button type="button" class="btn" id="themaBtn">☾ Dunkles Design</button>
+    </div>
 
     <div class="abschnitt">
       <h3>Fokus-Timer</h3>

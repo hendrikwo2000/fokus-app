@@ -188,6 +188,23 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 
 .menge-feld { display: flex; align-items: center; gap: 6px; }
 .menge-feld input { width: 72px; text-align: center; }
+/* Gleiche Grundmasse wie .haken: auch dieser Knopf soll am Handy sicher zu
+   treffen sein. */
+.menge-plus {
+  flex: 0 0 auto;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--row);
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.menge-plus:hover { border-color: var(--accent); background: var(--accent-soft); }
 
 .leer-hinweis {
   text-align: center;
@@ -196,58 +213,77 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
   padding: 34px 10px;
 }
 
-/* ---------- Verlaufsraster ---------- */
-/* Quer scrollbar, weil 35 Tage nebeneinander auf kein Handy passen. Der
-   Container scrollt, nicht die Seite - sonst waere die ganze App verschoben. */
-.raster-huelle { overflow-x: auto; padding-bottom: 6px; }
-.raster {
-  display: grid;
-  gap: 3px;
-  width: max-content;
-  min-width: 100%;
+/* ---------- Verlauf: Kalender pro Gewohnheit ---------- */
+/* Umschalter zwischen den Gewohnheiten - quer scrollbar statt umbrechend,
+   damit die Zeilenhoehe unabhaengig von der Zahl der Gewohnheiten bleibt. */
+.kal-wahl {
+  display: flex; gap: 6px; overflow-x: auto;
+  padding-bottom: 6px; margin-bottom: 4px;
 }
-.raster-name {
-  font-size: 12.5px;
-  font-weight: 600;
-  padding-right: 10px;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  position: sticky;
-  left: 0;
-  background: var(--bg);
-  z-index: 1;
-}
-.raster-kopf {
-  font-size: 10px;
+.kal-wahl button {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: var(--row);
   color: var(--muted);
-  text-align: center;
-  height: 14px;
+  font: inherit; font-size: 13px; font-weight: 600;
+  padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
 }
-.raster-zelle {
-  width: 18px; height: 18px;
-  border-radius: 4px;
-  border: 0;
+.kal-wahl button[aria-selected="true"] {
+  border-color: var(--accent); background: var(--accent-soft); color: var(--accent);
+}
+
+.kal-kopf {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  margin: 4px 0 14px;
+}
+.kal-monat { font-size: 15px; font-weight: 700; min-width: 150px; text-align: center; }
+
+/* Kopfzeile (Mo-So) und Tageszellen sind EIN Grid, nicht zwei - so bleiben
+   die Spalten garantiert bündig, ohne zwei Layouts synchron halten zu muessen. */
+.kal-raster {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.kal-tage-kopf-zelle {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  text-align: center; padding-bottom: 4px;
+}
+.kal-zelle {
+  aspect-ratio: 1;
+  border: 0; border-radius: 10px;
   padding: 0;
   background: var(--leer);
+  color: var(--text);
+  font: inherit; font-size: 13px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
   transition: transform .1s;
 }
-.raster-zelle:hover { transform: scale(1.25); }
-.raster-zelle.erledigt { background: var(--green); }
-.raster-zelle.teilweise { background: var(--yellow); }
-.raster-zelle.heute { box-shadow: 0 0 0 2px var(--accent); }
+.kal-zelle:hover:not(:disabled) { transform: scale(1.08); }
+.kal-zelle.leer { background: transparent; cursor: default; }
+.kal-zelle.erledigt { background: var(--green); color: #fff; }
+.kal-zelle.teilweise { background: var(--yellow); color: #1f2430; }
+.kal-zelle.heute { box-shadow: 0 0 0 2px var(--accent); }
 /* Zukunft: nicht anklickbar und kaum sichtbar - sie soll nicht wie ein
    verpasster Tag aussehen. */
-.raster-zelle.zukunft { opacity: .25; cursor: default; }
-.raster-zelle.zukunft:hover { transform: none; }
+.kal-zelle.zukunft { opacity: .3; cursor: default; }
+.kal-zelle.zukunft:hover { transform: none; }
+/* Nicht geplant (feste Wochentage): eigener, gedaempfter Zustand - nicht zu
+   verwechseln mit "offen", das ja ein verpasster Tag waere. */
+.kal-zelle.nicht-geplant { background: transparent; color: var(--muted); opacity: .4; cursor: default; }
+.kal-zelle.nicht-geplant:hover { transform: none; }
 
 .legende {
-  display: flex; gap: 14px; justify-content: center;
+  display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
   margin-top: 16px; font-size: 12px; color: var(--muted);
 }
 .legende span { display: flex; align-items: center; gap: 5px; }
 .legende i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.kal-nicht-geplant-swatch { border: 1px dashed var(--muted); background: transparent !important; }
 
 /* ---------- Fokus-Timer ---------- */
 .timer {
@@ -437,6 +473,9 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .wahl button[aria-pressed="true"] {
   border-color: var(--accent); background: var(--accent-soft); color: var(--accent);
 }
+/* Sieben Knoepfe statt zwei/drei - weniger Innenabstand, damit "Mo".."So"
+   auch auf einem schmalen Handy noch nebeneinander passen. */
+.wahl-wochentage button { padding: 9px 2px; }
 
 .archiv-zeile {
   display: flex; align-items: center; gap: 8px;

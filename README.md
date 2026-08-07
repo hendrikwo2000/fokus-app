@@ -20,17 +20,39 @@ Die App fragt vorher nach.
 Zwei Arten:
 
 - **Abhaken** — erledigt oder nicht. Ein Tipp auf den Kreis.
-- **Mit Zielmenge** — zum Beispiel „30 Min lesen". Drei Zustände: offen (grau),
-  angefangen (gelb), Ziel erreicht (grün). Menge ins Zahlenfeld tippen, oder den
-  Kreis antippen, um direkt aufs Ziel zu springen.
+- **Mit Zielmenge** — zum Beispiel „30 Min lesen", Einheit optional. Drei
+  Zustände: offen (grau), angefangen (gelb), Ziel erreicht (grün). Menge ins
+  Zahlenfeld tippen, mit „+" um eins erhöhen, oder den Kreis antippen, um
+  direkt aufs Ziel zu springen.
 
-Alle Gewohnheiten gelten täglich.
+Doppeltipp auf eine Gewohnheit öffnet sie zum Bearbeiten — Name, Ziel,
+Rhythmus, alles änderbar außer der Art (Abhaken/Mit Zielmenge).
+
+### Rhythmus
+
+Drei Möglichkeiten, wie oft eine Gewohnheit dran ist:
+
+- **Täglich** — jeden Tag.
+- **Feste Wochentage** — zum Beispiel Mo/Mi/Fr. An anderen Tagen taucht die
+  Gewohnheit in „Heute" gar nicht erst auf.
+- **X Mal die Woche** — ein Wochenziel ohne feste Tage. Sobald es erreicht ist,
+  verschwindet die Gewohnheit für den Rest der Woche aus „Heute"; die Karte
+  zeigt bis dahin den Fortschritt („3 von 4 diese Woche").
+
+Bei festen Wochentagen zählt die Strähne (🔥) geplante Tage in Folge, Tage
+dazwischen unterbrechen sie nicht. Bei „X Mal die Woche" zählt sie erreichte
+Wochen in Folge.
+
+Der Rhythmus lässt sich jederzeit ändern, wirkt sich aber nur auf Anzeige und
+Strähne **ab jetzt** aus — anders als beim Ziel gibt es dafür keine rückwirkende
+Neubewertung vergangener Tage.
 
 ### Nachtragen
 
-Im Reiter **Verlauf** steht ein Raster: eine Zeile pro Gewohnheit, eine Spalte
-pro Tag, die letzten fünf Wochen. Tipp auf ein Kästchen, um den Tag
-einzutragen — auch rückwirkend.
+Im Reiter **Verlauf** steht ein Monatskalender, eine Gewohnheit auf einmal —
+oben zwischen den Gewohnheiten wechseln, mit den Pfeilen durch die Monate
+blättern. Tipp auf einen Tag, um ihn einzutragen — auch rückwirkend. Bei festen
+Wochentagen sind nicht geplante Tage gedimmt und lassen sich nicht antippen.
 
 Ein gelber Tag wird grün, sobald du die fehlende Menge nachträgst. **Die Strähne
 heilt dabei rückwirkend**: war die Kette nur wegen dieses einen Tages
@@ -82,5 +104,5 @@ App ohne Adresszeile wie eine normale App.
 
 ## Hell und dunkel
 
-Der Mond/Sonne-Knopf oben schaltet um. Beim ersten Aufruf folgt die App der
-Systemeinstellung.
+Umschalter im Zahnrad-Menü unter *Darstellung*. Beim ersten Aufruf folgt die
+App der Systemeinstellung.

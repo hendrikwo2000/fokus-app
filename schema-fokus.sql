@@ -13,23 +13,41 @@
 --
 -- Einspielen: Cloudflare-Dashboard -> D1 -> todo -> Konsole, oder
 --   npx wrangler d1 execute todo --remote --file=schema-fokus.sql
+--
+-- Fuer eine bereits laufende Installation (diese Datei wurde schon einmal
+-- ausgefuehrt) reicht das hier nicht: neue Spalten kommen als eigene
+-- ALTER-TABLE-Datei (z. B. migration-rhythmus.sql), CREATE TABLE IF NOT
+-- EXISTS ruehrt eine bestehende Tabelle nicht an.
 
 -- Eine Gewohnheit. Zwei Typen:
 --   'binaer' - erledigt oder nicht, kein Ziel
 --   'menge'  - Zielmenge mit frei getippter Einheit ("30 Min", "20 Seiten")
+--
+-- Rhythmus orthogonal zum Typ - 'taeglich' | 'wochentage' | 'x_pro_woche'.
+-- Anders als der Typ ist der Rhythmus nach dem Anlegen aenderbar: es gibt
+-- bewusst keine Versionierung wie bei ziel_damals, eine Aenderung gilt sofort
+-- fuer Anzeige und Straehne (siehe migration-rhythmus.sql fuer die Begruendung
+-- bei bereits bestehenden Installationen).
 CREATE TABLE IF NOT EXISTS gewohnheiten (
-  id          TEXT PRIMARY KEY,
-  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  name        TEXT NOT NULL,
-  typ         TEXT NOT NULL DEFAULT 'binaer' CHECK (typ IN ('binaer', 'menge')),
-  zielmenge   INTEGER,
-  einheit     TEXT,
-  position    INTEGER NOT NULL DEFAULT 0,
+  id                TEXT PRIMARY KEY,
+  user_id           INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name              TEXT NOT NULL,
+  typ               TEXT NOT NULL DEFAULT 'binaer' CHECK (typ IN ('binaer', 'menge')),
+  zielmenge         INTEGER,
+  einheit           TEXT,
+  rhythmus          TEXT NOT NULL DEFAULT 'taeglich'
+                      CHECK (rhythmus IN ('taeglich', 'wochentage', 'x_pro_woche')),
+  -- Bitmaske, Bit i = Wochentag i aus ["Mo","Di","Mi","Do","Fr","Sa","So"]
+  -- (Mo=1, Di=2, Mi=4, Do=8, Fr=16, Sa=32, So=64). Nur bei rhythmus='wochentage'.
+  wochentage_maske  INTEGER,
+  -- Tage pro Woche (1-7). Nur bei rhythmus='x_pro_woche'.
+  wochenziel        INTEGER,
+  position          INTEGER NOT NULL DEFAULT 0,
   -- Archiviert heisst: raus aus der Tagesansicht, Historie bleibt. Endgueltig
   -- loeschen geht nur aus dem Archiv - die Zahlen sind bei einem Habit-Tracker
   -- das Wertvolle, ein Fehlklick soll sie nicht kosten.
-  archiviert  INTEGER NOT NULL DEFAULT 0 CHECK (archiviert IN (0, 1)),
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  archiviert        INTEGER NOT NULL DEFAULT 0 CHECK (archiviert IN (0, 1)),
+  created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 -- Ein Tag einer Gewohnheit. Kein eigener Schluessel: (Gewohnheit, Datum) ist

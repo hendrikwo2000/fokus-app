@@ -77,7 +77,7 @@ kein Zeitfenster, in dem etwas bricht.
 
 | Tabelle | Inhalt |
 | --- | --- |
-| `gewohnheiten` | Name, Typ (`binaer`/`menge`), Zielmenge, Einheit, archiviert |
+| `gewohnheiten` | Name, Typ (`binaer`/`menge`), Zielmenge, Einheit, Rhythmus (`taeglich`/`wochentage`/`x_pro_woche`) mit Wochentage-Bitmaske bzw. Wochenziel, archiviert |
 | `gewohnheit_logs` | Ein Tag: `(gewohnheit_id, datum)` als Schlüssel, Menge, `ziel_damals` |
 | `fokus_sitzungen` | Start, geplante/echte Dauer, Pausen, vollständig |
 | `fokus_einstellungen` | Standarddauer pro Nutzer |
@@ -185,8 +185,11 @@ an. Die lokale D1 der ToDo-Liste ist damit **nicht** dieselbe — Nutzer,
 Sitzungen und Login-Codes fehlen hier komplett, und der erste Aufruf endet in
 einem 500er.
 
-Einspielen muss man deshalb **beides**: den Auth-Kern (`users`, `sessions`,
-`login_codes` aus `ToDo/web/schema.sql`) **und** `schema-fokus.sql`.
+Einspielen muss man deshalb **alle drei**: den Auth-Kern (`users`, `sessions`,
+`login_codes` aus `ToDo/web/schema.sql`), `schema-fokus.sql` **und**
+`migration-rhythmus.sql` (bei einer ganz frischen lokalen DB reicht das
+aktualisierte `schema-fokus.sql` allein, die Migration ist nur für eine lokale
+DB noetig, die vor dem Rhythmus-Feature angelegt wurde).
 
 ### Falle: `wrangler d1 execute --local` stürzt auf Windows ab
 
@@ -255,7 +258,7 @@ laden. HttpOnly stört nicht — der Server prüft nur den Wert.
 | `GET /api/auth/link?t=` | Anmeldelink einlösen, 302 statt JSON |
 | `POST /api/auth/logout` | Sitzung serverseitig löschen (gilt für beide Apps) |
 | `GET /api/auth/status` | `{angemeldet}` — immer 200, wird im Sekundentakt gepollt |
-| `GET /api/gewohnheiten?heute=&wochen=` | Bootstrap: Gewohnheiten, Logs, Strähnen |
+| `GET /api/gewohnheiten?heute=` | Bootstrap: Gewohnheiten, volle Log-Historie (`historieAb` bis `heute`), Strähnen |
 | `POST/PATCH/DELETE /api/gewohnheiten` | Anlegen, ändern/archivieren, endgültig löschen |
 | `PUT /api/gewohnheiten/log` | Einen Tag setzen — der einzige Schreibweg für Tage |
 | `GET /api/fokus?heute=` | Laufende Sitzung, Einstellungen, Wochenstatistik |

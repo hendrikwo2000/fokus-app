@@ -8,16 +8,20 @@
  * schicken. Bei 401 geht die Anmeldemaske auf, bei 403 der Gesperrt-Kasten.
  */
 
-const WOCHEN_IM_RASTER = 5;
 const WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
 const state = {
   gewohnheiten: [],
   logs: {},        // { gewohnheitId: { "2026-08-07": {menge, ziel, status} } }
   straehnen: {},
-  von: "", bis: "", heute: "",
+  historieAb: "", heute: "",
   email: "", name: "",
 };
+
+// Welche Gewohnheit und welcher Monat im Kalender-Verlauf gerade zu sehen
+// sind. gewohnheitId faellt in renderVerlauf() auf die erste aktive
+// Gewohnheit zurueck, sobald sie leer ist oder ins Archiv/Nirwana zeigt.
+const verlauf = { gewohnheitId: null, monat: "" };
 
 const fokus = {
   arbeitMin: 25,
@@ -60,6 +64,39 @@ function formatDatum(iso) {
 function wochentagVon(iso) {
   const [j, m, t] = iso.split("-").map(Number);
   return WOCHENTAGE[(new Date(Date.UTC(j, m - 1, t)).getUTCDay() + 6) % 7];
+}
+
+// Wochentag-Index eines Datums, 0=Mo .. 6=So - Bit i (1<<i) dieses Index ist
+// die Position in gewohnheit.wochentageMaske. Serverseitiges Gegenstueck in
+// functions/_lib/tag.js.
+function wochentagIndex(datum) {
+  const [j, m, t] = datum.split("-").map(Number);
+  return (new Date(Date.UTC(j, m - 1, t)).getUTCDay() + 6) % 7;
+}
+
+function montagVon(datum) {
+  return tagPlus(datum, -wochentagIndex(datum));
+}
+
+// Monat um n verschieben, als "YYYY-MM". Eigene Rechnung statt tagPlus():
+// Monate sind unterschiedlich lang, eine Tages-Verschiebung wuerde das nicht
+// sauber treffen.
+function monatPlus(jahrMonat, n) {
+  const [j, m] = jahrMonat.split("-").map(Number);
+  const gesamt = j * 12 + (m - 1) + n;
+  const neuesJahr = Math.floor(gesamt / 12);
+  const neuerMonat = (gesamt % 12) + 1;
+  return `${neuesJahr}-${String(neuerMonat).padStart(2, "0")}`;
+}
+
+// 42 Tage (6 Wochen) fuer ein festes Kalenderraster, vom Montag vor/am
+// Monatsersten an. Feste Zellenzahl statt dynamisch 5-6 Zeilen haelt die
+// Monatshoehe beim Blaettern konstant.
+function monatsRaster(jahrMonat) {
+  const start = montagVon(`${jahrMonat}-01`);
+  const tage = [];
+  for (let i = 0; i < 42; i++) tage.push(tagPlus(start, i));
+  return tage;
 }
 
 /* ----------------------------------------------------------------- Netz */
@@ -233,7 +270,7 @@ $("lockAbmelden").onclick = async () => {
 
 async function ladeGewohnheiten() {
   state.heute = heuteStr();
-  const antwort = await api(`/api/gewohnheiten?heute=${state.heute}&wochen=${WOCHEN_IM_RASTER}`);
+  const antwort = await api(`/api/gewohnheiten?heute=${state.heute}`);
   if (antwort.status === 401) return "anmelden";
   if (antwort.status === 403) return antwort.daten.error || "gesperrt";
   if (!antwort.ok) { melde(antwort.daten.error || "Laden fehlgeschlagen"); return null; }
@@ -242,8 +279,7 @@ async function ladeGewohnheiten() {
   state.gewohnheiten = d.gewohnheiten;
   state.logs = d.logs;
   state.straehnen = d.straehnen;
-  state.von = d.von;
-  state.bis = d.bis;
+  state.historieAb = d.historieAb;
   state.email = d.email;
   state.name = d.name;
   return null;
@@ -280,7 +316,6 @@ async function start() {
   await ladeFokus();
   $("lock").classList.add("hidden");
   $("reiter").hidden = false;
-  $("themaBtn").hidden = false;
   $("einstellungenBtn").hidden = false;
   zeigeAnsicht(aktiveAnsicht);
 }
@@ -292,15 +327,47 @@ function tagVon(gewohnheitId, datum) {
   return (state.logs[gewohnheitId] || {})[datum] || null;
 }
 
+// Ob ein Datum zum Rhythmus einer Gewohnheit gehoert. Bei 'taeglich' und
+// 'x_pro_woche' ist jeder Tag geplant - der Unterschied zwischen den beiden
+// zeigt sich erst im Wochenziel, nicht am einzelnen Tag.
+function istGeplant(gewohnheit, datum) {
+  if (gewohnheit.rhythmus !== "wochentage") return true;
+  return (gewohnheit.wochentageMaske & (1 << wochentagIndex(datum))) !== 0;
+}
+
+// Zahl der in der laufenden Woche (Montag-Sonntag) bereits erledigten Tage -
+// fuer den Wochenfortschritt bei 'x_pro_woche' und dessen Straehne.
+function erledigtDieseWoche(gewohnheit) {
+  const start = montagVon(state.heute);
+  let n = 0;
+  for (let i = 0; i < 7; i++) {
+    const tag = tagVon(gewohnheit.id, tagPlus(start, i));
+    if (tag && tag.status === "erledigt") n++;
+  }
+  return n;
+}
+
+// Ob eine Gewohnheit heute ueberhaupt in der Liste erscheint. 'wochentage':
+// nur an geplanten Tagen. 'x_pro_woche': nur solange das Wochenziel noch
+// nicht erreicht ist - danach verschwindet sie fuer den Rest der Woche.
+function istHeuteDran(gewohnheit) {
+  if (gewohnheit.rhythmus === "wochentage") return istGeplant(gewohnheit, state.heute);
+  if (gewohnheit.rhythmus === "x_pro_woche") return erledigtDieseWoche(gewohnheit) < gewohnheit.wochenziel;
+  return true;
+}
+
 function renderHeute() {
   const liste = $("heuteListe");
   liste.replaceChildren();
 
-  const aktive = state.gewohnheiten.filter(g => !g.archiviert);
+  const alleAktiven = state.gewohnheiten.filter(g => !g.archiviert);
+  const aktive = alleAktiven.filter(istHeuteDran);
   if (!aktive.length) {
     const p = document.createElement("p");
     p.className = "leer-hinweis";
-    p.textContent = "Noch keine Gewohnheit. Leg unten deine erste an.";
+    p.textContent = alleAktiven.length
+      ? "Heute ist keine Gewohnheit dran."
+      : "Noch keine Gewohnheit. Leg unten deine erste an.";
     liste.appendChild(p);
     return;
   }
@@ -317,8 +384,15 @@ function renderHeute() {
     const karte = document.createElement("div");
     karte.className = `gew ${zustand}`;
 
+    // Bearbeiten sitzt auf Name+Zeile, nicht auf einem eigenen Knopf - der
+    // waere in der Zeile nur ein weiteres Ziel, das man beim Abhaken
+    // versehentlich trifft. Zahlenfeld und Haken sind bewusst KEINE Kinder
+    // von haupt (siehe unten), ein Doppelklick dort loest normales Verhalten
+    // aus (z. B. Text-Selektion), nicht den Dialog.
     const haupt = document.createElement("div");
     haupt.className = "gew-haupt";
+    haupt.title = "Doppelklick zum Bearbeiten";
+    haupt.ondblclick = () => oeffneGewohnheitDialog(g);
 
     const name = document.createElement("div");
     name.className = "gew-name";
@@ -330,8 +404,14 @@ function renderHeute() {
 
     if (g.typ === "menge") {
       const text = document.createElement("span");
-      text.textContent = `${menge} / ${ziel} ${g.einheit}`;
+      text.textContent = `${menge} / ${ziel}` + (g.einheit ? ` ${g.einheit}` : "");
       zeile.appendChild(text);
+    }
+
+    if (g.rhythmus === "x_pro_woche") {
+      const fortschritt = document.createElement("span");
+      fortschritt.textContent = `${erledigtDieseWoche(g)} von ${g.wochenziel} diese Woche`;
+      zeile.appendChild(fortschritt);
     }
 
     const straehne = state.straehnen[g.id] || 0;
@@ -339,15 +419,6 @@ function renderHeute() {
     st.className = "straehne" + (straehne > 0 ? " aktiv" : "");
     st.textContent = straehne > 0 ? `🔥 ${straehne} Tage` : "keine Strähne";
     zeile.appendChild(st);
-
-    // Bearbeiten sitzt am Namen, nicht auf einem eigenen Knopf - der waere in
-    // der Zeile nur ein weiteres Ziel, das man beim Abhaken versehentlich trifft.
-    const bearbeiten = document.createElement("button");
-    bearbeiten.className = "btn klein";
-    bearbeiten.style.marginLeft = "auto";
-    bearbeiten.textContent = "Bearbeiten";
-    bearbeiten.onclick = () => oeffneGewohnheitDialog(g);
-    zeile.appendChild(bearbeiten);
 
     haupt.appendChild(zeile);
 
@@ -374,6 +445,16 @@ function renderHeute() {
       // change statt input: sonst schiesst jeder Tastendruck eine Anfrage ab.
       eingabe.onchange = () => setzeTag(g, state.heute, Number(eingabe.value));
       feld.appendChild(eingabe);
+
+      const plus = document.createElement("button");
+      plus.type = "button";
+      plus.className = "menge-plus";
+      plus.textContent = "+";
+      plus.title = "Um 1 erhöhen";
+      plus.setAttribute("aria-label", `${g.name}: Menge um 1 erhöhen`);
+      plus.onclick = () => setzeTag(g, state.heute, menge + 1);
+      feld.appendChild(plus);
+
       karte.appendChild(feld);
     }
 
@@ -427,65 +508,116 @@ async function setzeTag(gewohnheit, datum, menge) {
 }
 
 /* ------------------------------------------------------------- Verlauf */
+/* Ein Monatskalender pro Gewohnheit, umschaltbar ueber kalWahl. Ersetzt das
+   fruehere Raster (eine Zeile pro Gewohnheit, alle gleichzeitig) - bei mehr
+   als ein, zwei Gewohnheiten wurden die Zellen darin zu klein zum Treffen. */
 
 function renderVerlauf() {
-  const raster = $("raster");
-  raster.replaceChildren();
-  if (!state.von) return;
-
   const aktive = state.gewohnheiten.filter(g => !g.archiviert);
   if (!aktive.length) {
+    verlauf.gewohnheitId = null;
+    $("kalWahl").replaceChildren();
+    $("kalMonat").textContent = "";
+    $("kalZurueck").disabled = true;
+    $("kalVor").disabled = true;
+    $("kalLegendeGeplant").hidden = true;
+    const kal = $("kalender");
+    kal.replaceChildren();
     const p = document.createElement("p");
     p.className = "leer-hinweis";
     p.textContent = "Noch keine Gewohnheit angelegt.";
-    raster.appendChild(p);
+    kal.appendChild(p);
     return;
   }
 
-  const tage = [];
-  for (let d = state.von; d <= state.bis; d = tagPlus(d, 1)) tage.push(d);
-
-  raster.style.gridTemplateColumns = `auto repeat(${tage.length}, 18px)`;
-
-  // Kopfzeile: Wochentag-Kuerzel. Weil `von` immer ein Montag ist, stehen
-  // dieselben Wochentage untereinander und das Wochenende faellt auf.
-  raster.appendChild(document.createElement("div"));
-  for (const d of tage) {
-    const kopf = document.createElement("div");
-    kopf.className = "raster-kopf";
-    kopf.textContent = wochentagVon(d).slice(0, 1);
-    raster.appendChild(kopf);
+  // Faellt auf die erste aktive Gewohnheit zurueck, wenn noch keine gewaehlt
+  // ist oder die gewaehlte gerade archiviert/geloescht wurde.
+  if (!verlauf.gewohnheitId || !aktive.some(g => g.id === verlauf.gewohnheitId)) {
+    verlauf.gewohnheitId = aktive[0].id;
   }
+  if (!verlauf.monat) verlauf.monat = state.heute.slice(0, 7);
 
-  for (const g of aktive) {
-    const name = document.createElement("div");
-    name.className = "raster-name";
-    name.textContent = g.name;
-    raster.appendChild(name);
-
-    for (const d of tage) {
-      const tag = tagVon(g.id, d);
-      const zelle = document.createElement("button");
-      const zukunft = d > state.heute;
-      zelle.className = "raster-zelle " + (tag ? tag.status : "offen")
-        + (d === state.heute ? " heute" : "") + (zukunft ? " zukunft" : "");
-      zelle.title = `${g.name} — ${wochentagVon(d)}, ${formatDatum(d)}`
-        + (tag ? `: ${tag.menge}${g.typ === "menge" ? " / " + tag.ziel + " " + g.einheit : ""}` : "");
-      if (zukunft) {
-        zelle.disabled = true;
-      } else {
-        zelle.onclick = () => oeffneTagDialog(g, d);
-      }
-      raster.appendChild(zelle);
-    }
-  }
-
-  // Ganz nach rechts, also zu heute. Ohne das staende man beim Oeffnen fuenf
-  // Wochen in der Vergangenheit und muesste erst scrollen, um den Tag zu
-  // sehen, um den es meistens geht.
-  const huelle = raster.parentElement;
-  huelle.scrollLeft = huelle.scrollWidth;
+  renderKalWahl();
+  renderKalender();
 }
+
+function renderKalWahl() {
+  const wahl = $("kalWahl");
+  wahl.replaceChildren();
+  for (const g of state.gewohnheiten.filter(x => !x.archiviert)) {
+    const knopf = document.createElement("button");
+    knopf.type = "button";
+    knopf.textContent = g.name;
+    knopf.setAttribute("aria-selected", String(g.id === verlauf.gewohnheitId));
+    knopf.onclick = () => {
+      verlauf.gewohnheitId = g.id;
+      renderKalWahl();
+      renderKalender();
+    };
+    wahl.appendChild(knopf);
+  }
+}
+
+function renderKalender() {
+  const gewohnheit = state.gewohnheiten.find(g => g.id === verlauf.gewohnheitId);
+  const kal = $("kalender");
+  kal.replaceChildren();
+  if (!gewohnheit) return;
+
+  const heuteMonat = state.heute.slice(0, 7);
+  const fruehestesMonat = state.historieAb.slice(0, 7);
+  $("kalZurueck").disabled = verlauf.monat <= fruehestesMonat;
+  $("kalVor").disabled = verlauf.monat >= heuteMonat;
+
+  const [jahr, monat] = verlauf.monat.split("-").map(Number);
+  $("kalMonat").textContent = new Date(Date.UTC(jahr, monat - 1, 1))
+    .toLocaleDateString("de-DE", { month: "long", year: "numeric", timeZone: "UTC" });
+
+  for (const name of WOCHENTAGE) {
+    const kopf = document.createElement("div");
+    kopf.className = "kal-tage-kopf-zelle";
+    kopf.textContent = name;
+    kal.appendChild(kopf);
+  }
+
+  let irgendeinNichtGeplant = false;
+  for (const d of monatsRaster(verlauf.monat)) {
+    const imMonat = d.slice(0, 7) === verlauf.monat;
+    if (!imMonat) {
+      const leer = document.createElement("div");
+      leer.className = "kal-zelle leer";
+      kal.appendChild(leer);
+      continue;
+    }
+
+    const zukunft = d > state.heute;
+    const geplant = istGeplant(gewohnheit, d);
+    const tag = tagVon(gewohnheit.id, d);
+    if (!geplant) irgendeinNichtGeplant = true;
+
+    const zelle = document.createElement("button");
+    zelle.type = "button";
+    zelle.className = "kal-zelle "
+      + (!geplant ? "nicht-geplant" : (tag ? tag.status : "offen"))
+      + (d === state.heute ? " heute" : "")
+      + (zukunft ? " zukunft" : "");
+    zelle.textContent = String(Number(d.slice(8, 10)));
+    zelle.title = `${wochentagVon(d)}, ${formatDatum(d)}`
+      + (!geplant ? " — nicht geplant"
+        : tag ? `: ${tag.menge}${gewohnheit.typ === "menge" ? " / " + tag.ziel + (gewohnheit.einheit ? " " + gewohnheit.einheit : "") : ""}`
+        : "");
+
+    if (zukunft || !geplant) zelle.disabled = true;
+    else zelle.onclick = () => oeffneTagDialog(gewohnheit, d);
+
+    kal.appendChild(zelle);
+  }
+
+  $("kalLegendeGeplant").hidden = !irgendeinNichtGeplant;
+}
+
+$("kalZurueck").onclick = () => { verlauf.monat = monatPlus(verlauf.monat, -1); renderKalender(); };
+$("kalVor").onclick = () => { verlauf.monat = monatPlus(verlauf.monat, 1); renderKalender(); };
 
 /* --------------------------------------------------------------- Timer */
 
@@ -661,6 +793,8 @@ document.addEventListener("visibilitychange", async () => {
 
 let bearbeiteteGewohnheit = null;
 let gewaehlterTyp = "binaer";
+let gewaehlterRhythmus = "taeglich";
+let gewaehlteWochentage = new Set(); // Indizes 0=Mo..6=So, siehe WOCHENTAGE
 
 function setzeTypWahl(typ) {
   gewaehlterTyp = typ;
@@ -670,13 +804,29 @@ function setzeTypWahl(typ) {
   $("gewZielFeld").hidden = typ !== "menge";
 }
 
+function setzeRhythmusWahl(rhythmus) {
+  gewaehlterRhythmus = rhythmus;
+  for (const knopf of $("gewRhythmus").querySelectorAll("button")) {
+    knopf.setAttribute("aria-pressed", String(knopf.dataset.rhythmus === rhythmus));
+  }
+  $("gewWochentageFeld").hidden = rhythmus !== "wochentage";
+  $("gewWochenzielFeld").hidden = rhythmus !== "x_pro_woche";
+}
+
+function setzeWochentagWahl(index, gewaehlt) {
+  if (gewaehlt) gewaehlteWochentage.add(index);
+  else gewaehlteWochentage.delete(index);
+  const knopf = $("gewWochentage").querySelector(`button[data-tag="${index}"]`);
+  if (knopf) knopf.setAttribute("aria-pressed", String(gewaehlteWochentage.has(index)));
+}
+
 function oeffneGewohnheitDialog(gewohnheit) {
   bearbeiteteGewohnheit = gewohnheit || null;
   $("gewTitel").textContent = gewohnheit ? "Gewohnheit bearbeiten" : "Neue Gewohnheit";
   $("gewIcon").textContent = gewohnheit ? "✏️" : "✨";
   $("gewName").value = gewohnheit ? gewohnheit.name : "";
   $("gewZiel").value = gewohnheit && gewohnheit.zielmenge ? gewohnheit.zielmenge : 30;
-  $("gewEinheit").value = gewohnheit && gewohnheit.einheit ? gewohnheit.einheit : "Min";
+  $("gewEinheit").value = (gewohnheit && gewohnheit.einheit) || "";
   $("gewMsg").textContent = "";
   // Der Typ steht nach dem Anlegen fest: ihn zu wechseln wuerde die ganze
   // Historie neu bewerten (aus jedem Haekchen wuerde "Menge 1").
@@ -684,6 +834,19 @@ function oeffneGewohnheitDialog(gewohnheit) {
   $("gewArchivieren").hidden = !gewohnheit;
   setzeTypWahl(gewohnheit ? gewohnheit.typ : "binaer");
   if (gewohnheit) $("gewZielFeld").hidden = gewohnheit.typ !== "menge";
+
+  // Rhythmus ist - anders als der Typ - auch beim Bearbeiten frei wechselbar.
+  gewaehlteWochentage = new Set();
+  const maske = (gewohnheit && gewohnheit.wochentageMaske) || 0;
+  for (const knopf of $("gewWochentage").querySelectorAll("button")) {
+    const i = Number(knopf.dataset.tag);
+    const gewaehlt = (maske & (1 << i)) !== 0;
+    if (gewaehlt) gewaehlteWochentage.add(i);
+    knopf.setAttribute("aria-pressed", String(gewaehlt));
+  }
+  $("gewWochenziel").value = (gewohnheit && gewohnheit.wochenziel) || 3;
+  setzeRhythmusWahl(gewohnheit ? gewohnheit.rhythmus : "taeglich");
+
   $("gewPopup").hidden = false;
   $("gewName").focus();
 }
@@ -691,15 +854,32 @@ function oeffneGewohnheitDialog(gewohnheit) {
 for (const knopf of $("gewTyp").querySelectorAll("button")) {
   knopf.onclick = () => setzeTypWahl(knopf.dataset.typ);
 }
+for (const knopf of $("gewRhythmus").querySelectorAll("button")) {
+  knopf.onclick = () => setzeRhythmusWahl(knopf.dataset.rhythmus);
+}
+for (const knopf of $("gewWochentage").querySelectorAll("button")) {
+  const i = Number(knopf.dataset.tag);
+  knopf.onclick = () => setzeWochentagWahl(i, !gewaehlteWochentage.has(i));
+}
 $("gewAbbrechen").onclick = () => { $("gewPopup").hidden = true; };
 $("neueGewohnheitBtn").onclick = () => oeffneGewohnheitDialog(null);
 
 $("gewSpeichern").onclick = async () => {
+  if (gewaehlterRhythmus === "wochentage" && !gewaehlteWochentage.size) {
+    $("gewMsg").textContent = "Mindestens ein Wochentag muss ausgewählt sein.";
+    return;
+  }
+  let wochentageMaske = 0;
+  for (const i of gewaehlteWochentage) wochentageMaske |= (1 << i);
+
   const koerper = {
     name: $("gewName").value.trim(),
     typ: bearbeiteteGewohnheit ? bearbeiteteGewohnheit.typ : gewaehlterTyp,
     zielmenge: Number($("gewZiel").value),
     einheit: $("gewEinheit").value.trim(),
+    rhythmus: gewaehlterRhythmus,
+    wochentageMaske,
+    wochenziel: Number($("gewWochenziel").value),
     // Damit der Server weiss, ab welchem Tag ein geaendertes Ziel gilt.
     heute: state.heute,
   };
@@ -742,7 +922,7 @@ function oeffneTagDialog(gewohnheit, datum) {
   $("tagDatum").textContent = `${wochentagVon(datum)}, ${formatDatum(datum)}`;
   $("tagMsg").textContent = "";
   $("tagLabel").textContent = gewohnheit.typ === "menge"
-    ? `Menge in ${gewohnheit.einheit} (Ziel ${ziel})`
+    ? (gewohnheit.einheit ? `Menge in ${gewohnheit.einheit} (Ziel ${ziel})` : `Menge (Ziel ${ziel})`)
     : "1 = erledigt, 0 = offen";
   $("tagMenge").value = String(tag ? tag.menge : 0);
   $("tagMenge").max = gewohnheit.typ === "binaer" ? "1" : "";
@@ -919,7 +1099,7 @@ for (const knopf of $("reiter").querySelectorAll("button")) {
 // der Systemeinstellung.
 function setzeThema(thema) {
   document.documentElement.setAttribute("data-theme", thema);
-  $("themaBtn").textContent = thema === "dark" ? "☀" : "☾";
+  $("themaBtn").textContent = thema === "dark" ? "☀ Helles Design" : "☾ Dunkles Design";
   localStorage.setItem("thema", thema);
 }
 setzeThema(localStorage.getItem("thema")
@@ -927,6 +1107,17 @@ setzeThema(localStorage.getItem("thema")
 $("themaBtn").onclick = () => {
   setzeThema(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
 };
+
+// Klick auf den Overlay-Hintergrund (nicht auf die Box selbst) schliesst den
+// Dialog - wie ein Abbrechen/Nein. Bei fragePopup muss das Promise dabei
+// aufgeloest werden, sonst bleibt es haengen.
+for (const id of ["gewPopup", "tagPopup", "einPopup", "fragePopup"]) {
+  $(id).addEventListener("click", (e) => {
+    if (e.target !== $(id)) return;
+    $(id).hidden = true;
+    if (id === "fragePopup") frageAntwort?.(false);
+  });
+}
 
 // Escape schliesst den obersten offenen Dialog.
 document.addEventListener("keydown", (e) => {

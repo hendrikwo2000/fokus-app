@@ -107,3 +107,87 @@ export function straehne(gruene, heute) {
   }
   return laenge;
 }
+
+// Wochentag-Index eines Datums, 0=Mo .. 6=So - dieselbe Verschiebung wie in
+// montagVon(). Bit i (1<<i) dieses Index ist die Position in wochentage_maske.
+function wochentagIndex(datum) {
+  const [j, m, t] = datum.split("-").map(Number);
+  return (new Date(Date.UTC(j, m - 1, t)).getUTCDay() + 6) % 7;
+}
+
+function istGeplant(datum, maske) {
+  return (maske & (1 << wochentagIndex(datum))) !== 0;
+}
+
+/**
+ * Straehne fuer den Rhythmus 'wochentage': zaehlt geplante Tage in Folge,
+ * nicht-geplante Kalendertage werden beim Rueckwaertslaufen stillschweigend
+ * uebersprungen - nur ein geplanter, aber nicht gruener Tag bricht die Kette.
+ *
+ * Wie bei straehne() zaehlt ein geplanter, aber noch nicht abgehakter
+ * heutiger Tag nicht als Bruch - sonst stuende die Straehne jeden Morgen auf
+ * null, bevor ueberhaupt Zeit war, ihn zu erledigen.
+ */
+export function straehneWochentage(gruene, heute, maske) {
+  let tag = (istGeplant(heute, maske) && !gruene.has(heute)) ? tagPlus(heute, -1) : heute;
+
+  let laenge = 0;
+  // Deckel ueber Kalendertage, nicht ueber geplante Tage: bei nur einem
+  // Wochentag pro Woche waeren 3700 geplante Tage ueber 71 Jahre verteilt.
+  let kalendertage = 0;
+  while (kalendertage < 26000) {
+    kalendertage++;
+    if (!istGeplant(tag, maske)) { tag = tagPlus(tag, -1); continue; }
+    if (!gruene.has(tag)) break;
+    laenge++;
+    tag = tagPlus(tag, -1);
+  }
+  return laenge;
+}
+
+function grueneInWoche(gruene, wocheStart) {
+  let n = 0;
+  for (let i = 0; i < 7; i++) if (gruene.has(tagPlus(wocheStart, i))) n++;
+  return n;
+}
+
+/**
+ * Straehne fuer den Rhythmus 'x_pro_woche': zaehlt nicht Tage, sondern ganze
+ * Wochen in Folge, in denen mindestens `ziel` Tage gruen waren.
+ *
+ * Die laufende Woche zaehlt nur mit, wenn ihr Ziel JETZT schon erreicht ist -
+ * sonst stuende die Straehne montags frueh auf null, obwohl die Woche gerade
+ * erst angefangen hat.
+ */
+export function straehneXProWoche(gruene, heute, ziel) {
+  const zielZahl = Math.max(1, Number(ziel) || 1);
+  let wocheStart = montagVon(heute);
+  if (grueneInWoche(gruene, wocheStart) < zielZahl) wocheStart = tagPlus(wocheStart, -7);
+
+  let laenge = 0;
+  let wochen = 0;
+  while (wochen < 3700) {
+    wochen++;
+    if (grueneInWoche(gruene, wocheStart) < zielZahl) break;
+    laenge++;
+    wocheStart = tagPlus(wocheStart, -7);
+  }
+  return laenge;
+}
+
+/**
+ * Straehne je nach Rhythmus-Typ ueber die passende Funktion rechnen - der
+ * gemeinsame Einstiegspunkt fuer beide Endpunkte (Bootstrap-GET und
+ * Tag-Speichern), damit die Zuordnung Rhythmus -> Funktion nur an einer
+ * Stelle steht. `gewohnheit` braucht dafuer `rhythmus`, `wochentage_maske`,
+ * `wochenziel` (Rohspalten-Namen wie in der DB).
+ */
+export function straehneFuer(gewohnheit, gruene, heute) {
+  if (gewohnheit.rhythmus === "wochentage") {
+    return straehneWochentage(gruene, heute, gewohnheit.wochentage_maske);
+  }
+  if (gewohnheit.rhythmus === "x_pro_woche") {
+    return straehneXProWoche(gruene, heute, gewohnheit.wochenziel);
+  }
+  return straehne(gruene, heute);
+}

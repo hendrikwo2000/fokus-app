@@ -12,7 +12,7 @@
 
 import { json, liesJson } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
-import { pruefeHeute, pruefeLogDatum, tagPlus, status, straehne } from "../../_lib/tag.js";
+import { pruefeHeute, pruefeLogDatum, tagPlus, status, straehneFuer } from "../../_lib/tag.js";
 
 const LOG_TAGE = 730;
 
@@ -41,7 +41,8 @@ export async function onRequestPut({ request, env }) {
 
   try {
     const gewohnheit = await env.DB.prepare(
-      "SELECT id, typ, zielmenge FROM gewohnheiten WHERE id = ? AND user_id = ?"
+      `SELECT id, typ, zielmenge, rhythmus, wochentage_maske, wochenziel
+         FROM gewohnheiten WHERE id = ? AND user_id = ?`
     ).bind(id, nutzerId).first();
     if (!gewohnheit) return json({ error: "Gewohnheit nicht gefunden" }, 404);
 
@@ -94,7 +95,7 @@ export async function onRequestPut({ request, env }) {
       menge: wert,
       ziel: zielDesTages,
       status: neuerStatus,
-      straehne: straehne(gruene, heute),
+      straehne: straehneFuer(gewohnheit, gruene, heute),
     });
   } catch (e) {
     return json({ error: "Datenbankfehler beim Speichern" }, 500);
