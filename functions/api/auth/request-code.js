@@ -52,7 +52,6 @@ Du hast das nicht angefordert? Dann ignoriere diese Mail einfach.`;
 
 export async function onRequestPost({ request, env }) {
   if (!env.DB) return json({ error: "D1-Bindung DB fehlt im Pages-Projekt" }, 500);
-  if (!env.RESEND_KEY) return json({ error: "RESEND_KEY fehlt im Pages-Projekt" }, 500);
 
   const { body, fehler } = await liesJson(request);
   if (fehler) return fehler;
@@ -67,6 +66,12 @@ export async function onRequestPost({ request, env }) {
   if (!darfRein(env, email)) {
     return json({ error: "Diese Adresse ist für den Fokus-Tracker nicht freigeschaltet." }, 403);
   }
+
+  // Erst NACH der Zugangspruefung: eine gesperrte Adresse soll ihre Absage auch
+  // dann bekommen, wenn der Mailversand gar nicht eingerichtet ist. Andersherum
+  // antwortet lokal (ohne RESEND_KEY) jede Adresse mit 500, und der Zugangsweg
+  // liesse sich nicht testen.
+  if (!env.RESEND_KEY) return json({ error: "RESEND_KEY fehlt im Pages-Projekt" }, 500);
 
   let nutzer, kuerzlich;
   try {
