@@ -9,7 +9,7 @@
  *
  * Erlaubte Adressen stehen in der Umgebungsvariable FOKUS_ZUGANG, kommagetrennt:
  *
- *     FOKUS_ZUGANG = hendrik.wolf.004@gmail.com
+ *     FOKUS_ZUGANG = deine@adresse.example
  *
  * Adressen statt Nutzer-IDs, weil man sie im Cloudflare-Dashboard aendern kann,
  * ohne vorher in der Datenbank nachzusehen, welche ID zu wem gehoert.

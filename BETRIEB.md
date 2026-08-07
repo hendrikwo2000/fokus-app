@@ -36,7 +36,7 @@ Angemeldet zu sein reicht nicht. Wer den Fokus-Tracker benutzen darf, steht in
 der Umgebungsvariable **`FOKUS_ZUGANG`** (kommagetrennte Adressen):
 
 ```
-FOKUS_ZUGANG = hendrik.wolf.004@gmail.com
+FOKUS_ZUGANG = deine@adresse.example
 ```
 
 Ohne die Variable kommt **niemand** rein. Lieber ausgesperrt als offen: ein
@@ -172,7 +172,7 @@ Erlaubnis).
 ## Lokal testen
 
 ```bash
-npx wrangler pages dev . --d1 DB=todo --binding FOKUS_ZUGANG=hendrik.wolf.004@gmail.com --port 8792 --ip 127.0.0.1
+npx wrangler pages dev . --d1 DB=todo --binding FOKUS_ZUGANG=deine@adresse.example --port 8792 --ip 127.0.0.1
 ```
 
 Bequemer über `.claude/launch.json` im Arbeitsverzeichnis `Documents/Claude-Code`,
