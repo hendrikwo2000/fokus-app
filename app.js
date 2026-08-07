@@ -558,12 +558,17 @@ function renderKalWahl() {
     const knopf = document.createElement("button");
     knopf.type = "button";
     knopf.textContent = g.name;
+    knopf.title = "Doppelklick zum Bearbeiten";
     knopf.setAttribute("aria-selected", String(g.id === verlauf.gewohnheitId));
     knopf.onclick = () => {
       verlauf.gewohnheitId = g.id;
       renderKalWahl();
       renderKalender();
     };
+    // Gewohnheiten, die heute/diese Woche nicht dran sind, tauchen nur hier
+    // auf (renderHeute() blendet sie aus) - ohne das waeren sie ueberhaupt
+    // nicht mehr bearbeit- oder archivierbar.
+    knopf.ondblclick = () => oeffneGewohnheitDialog(g);
     wahl.appendChild(knopf);
   }
 }
