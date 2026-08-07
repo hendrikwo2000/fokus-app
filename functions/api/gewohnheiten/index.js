@@ -224,12 +224,14 @@ export async function onRequestPost({ request, env }) {
 /**
  * Umbenennen, Ziel/Einheit/Rhythmus aendern, archivieren, reaktivieren.
  *
- * Der TYP laesst sich nicht aendern. Aus einer binaeren eine mengenbasierte
- * Gewohnheit zu machen wuerde die gesamte Historie neu bewerten - alle alten
- * Haekchen stuenden ploetzlich als "Menge 1" gegen ein Ziel von 30. Wer den
- * Typ wechseln will, legt eine neue Gewohnheit an.
+ * Der TYP laesst sich nur aendern, solange noch KEIN Tag erfasst ist. Aus
+ * einer binaeren eine mengenbasierte Gewohnheit zu machen wuerde sonst die
+ * gesamte Historie neu bewerten - alle alten Haekchen stuenden ploetzlich als
+ * "Menge 1" gegen ein Ziel von 30. Ohne Historie gibt es nichts umzudeuten,
+ * dann ist der Wechsel unbedenklich. Mit Historie bleibt es gesperrt (409) -
+ * wer dann noch wechseln will, legt eine neue Gewohnheit an.
  *
- * Der RHYTHMUS ist dagegen aenderbar: anders als beim Typ gibt es dafuer
+ * Der RHYTHMUS ist dagegen immer aenderbar: anders als beim Typ gibt es dafuer
  * bewusst keine Versionierung wie bei ziel_damals. Eine Aenderung gilt sofort
  * fuer Anzeige und Straehne, vergangene Log-Eintraege bleiben unangetastet,
  * aber die daraus abgeleitete Straehne wird mit dem AKTUELLEN Rhythmus neu
@@ -259,7 +261,19 @@ export async function onRequestPatch({ request, env }) {
       return json({ ok: true, archiviert: flagge === 1 });
     }
 
-    const { werte, meldung } = pruefeFelder(body, alt.typ);
+    let typ = alt.typ;
+    const gewuenschterTyp = body?.typ === "menge" ? "menge" : "binaer";
+    if (gewuenschterTyp !== alt.typ) {
+      const hatHistorie = await env.DB.prepare(
+        "SELECT 1 FROM gewohnheit_logs WHERE gewohnheit_id = ? LIMIT 1"
+      ).bind(id).first();
+      if (hatHistorie) {
+        return json({ error: "Der Typ lässt sich nicht mehr ändern, sobald ein Tag erfasst ist." }, 409);
+      }
+      typ = gewuenschterTyp;
+    }
+
+    const { werte, meldung } = pruefeFelder(body, typ);
     if (meldung) return json({ error: meldung }, 400);
 
     const { werte: rhythmusWerte, meldung: rhythmusMeldung } = pruefeRhythmus(body);
@@ -268,12 +282,12 @@ export async function onRequestPatch({ request, env }) {
     const flagge = body?.archiviert !== undefined ? (body.archiviert ? 1 : 0) : alt.archiviert;
     await env.DB.prepare(
       `UPDATE gewohnheiten
-          SET name = ?, zielmenge = ?, einheit = ?,
+          SET name = ?, typ = ?, zielmenge = ?, einheit = ?,
               rhythmus = ?, wochentage_maske = ?, wochenziel = ?,
               archiviert = ?
         WHERE id = ?`
     ).bind(
-      werte.name, werte.zielmenge, werte.einheit,
+      werte.name, typ, werte.zielmenge, werte.einheit,
       rhythmusWerte.rhythmus, rhythmusWerte.wochentageMaske, rhythmusWerte.wochenziel,
       flagge, id
     ).run();
@@ -292,7 +306,7 @@ export async function onRequestPatch({ request, env }) {
     return json({
       ok: true,
       gewohnheit: {
-        id, name: werte.name, typ: alt.typ,
+        id, name: werte.name, typ,
         zielmenge: werte.zielmenge, einheit: werte.einheit,
         rhythmus: rhythmusWerte.rhythmus,
         wochentageMaske: rhythmusWerte.wochentageMaske,

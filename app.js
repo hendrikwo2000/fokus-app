@@ -838,12 +838,18 @@ function oeffneGewohnheitDialog(gewohnheit) {
   $("gewZiel").value = gewohnheit && gewohnheit.zielmenge ? gewohnheit.zielmenge : 30;
   $("gewEinheit").value = (gewohnheit && gewohnheit.einheit) || "";
   $("gewMsg").textContent = "";
-  // Der Typ steht nach dem Anlegen fest: ihn zu wechseln wuerde die ganze
-  // Historie neu bewerten (aus jedem Haekchen wuerde "Menge 1").
-  $("gewTypFeld").hidden = !!gewohnheit;
   $("gewArchivieren").hidden = !gewohnheit;
   setzeTypWahl(gewohnheit ? gewohnheit.typ : "binaer");
   if (gewohnheit) $("gewZielFeld").hidden = gewohnheit.typ !== "menge";
+
+  // Die Art laesst sich nur wechseln, solange kein Tag erfasst ist - sonst
+  // wuerde sich die Historie nicht mehr eindeutig deuten lassen (aus jedem
+  // Haekchen wuerde kommentarlos "Menge 1"). Der Server prueft das nochmal
+  // verbindlich; hier nur die Anzeige.
+  const hatHistorie = !!(gewohnheit && state.logs[gewohnheit.id]
+    && Object.keys(state.logs[gewohnheit.id]).length);
+  for (const knopf of $("gewTyp").querySelectorAll("button")) knopf.disabled = hatHistorie;
+  $("gewTypHinweis").hidden = !hatHistorie;
 
   // Rhythmus ist - anders als der Typ - auch beim Bearbeiten frei wechselbar.
   gewaehlteWochentage = new Set();
@@ -884,7 +890,11 @@ $("gewSpeichern").onclick = async () => {
 
   const koerper = {
     name: $("gewName").value.trim(),
-    typ: bearbeiteteGewohnheit ? bearbeiteteGewohnheit.typ : gewaehlterTyp,
+    // Ohne Historie darf gewaehlterTyp vom bisherigen Typ abweichen (Knoepfe
+    // sind dann nicht disabled) - mit Historie sind die Knoepfe gesperrt,
+    // gewaehlterTyp bleibt also zwangslaeufig der alte. Der Server prueft das
+    // sicherheitshalber nochmal selbst.
+    typ: gewaehlterTyp,
     zielmenge: Number($("gewZiel").value),
     einheit: $("gewEinheit").value.trim(),
     rhythmus: gewaehlterRhythmus,
