@@ -90,6 +90,8 @@ Cloudflare-Dashboard → Pages → fokus → Settings → Environment variables.
 | --- | --- |
 | `RESEND_KEY` | Resend-API-Key mit Sendezugriff auf `mail.it-wolf.org`. Derselbe wie bei der ToDo-Liste. Ohne ihn schlägt jeder Login fehl. |
 | `ADMIN_MAIL` | Optional: wohin Wartelisten-Benachrichtigungen aus `/api/waitlist` gehen. Ohne sie gehen sie an alle Konten mit `role='admin'`. Dieselbe Variable wie bei der ToDo-Liste, hier separat gesetzt (getrenntes Pages-Projekt). |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Push-Schlüsselpaar. **Dieselben Werte wie im ToDo-Projekt** — VAPID identifiziert den absendenden Server gegenüber dem Push-Dienst, nicht die Domain, ein Wiederverwenden ist unbedenklich und erspart ein zweites Schlüsselpaar. Siehe [Benachrichtigungen](#benachrichtigungen). |
+| `PUSH_CRON_SECRET` | Geteiltes Geheimnis für `/api/push/pruefen` — eigener Wert, nicht identisch mit dem der ToDo-Liste (ein geleakter Wert legt sonst beide Cron-Endpunkte offen). Ohne korrekten Header antwortet der Endpunkt mit 403. |
 
 `FOKUS_ZUGANG` gibt es seit 08.08.2026 nicht mehr — Fokus-Zugang steht jetzt in
 der Datenbank, siehe Abschnitt „Zugang" oben.
@@ -116,6 +118,10 @@ kein Zeitfenster, in dem etwas bricht.
 Fremdschlüssel auf `users(id)` mit `ON DELETE CASCADE` — löschst du dein Konto
 in der ToDo-Liste, räumt die Datenbank die Fokus-Daten selbst mit weg. Genau
 dafür liegen die Tabellen in derselben Datenbank.
+
+Dazu `fokus_push_subscriptions` (`migration-push.sql`, separat von
+`schema-fokus.sql` — siehe [Benachrichtigungen](#benachrichtigungen)) mit
+derselben Cascade-Regel.
 
 ### Kein `status`-Feld
 
@@ -197,8 +203,75 @@ eine Sitzung von 23:30 Uhr in die falsche Woche.
 
 Signal am Sitzungsende auf drei Wegen, weil jeder einzelne ausfallen kann:
 Tab-Titel (geht immer), Ton über die Web Audio API (der Start-Klick ist die
-Geste, die Browser für Tonausgabe verlangen), Benachrichtigung (nur mit
-Erlaubnis).
+Geste, die Browser für Tonausgabe verlangen), Browser-Benachrichtigung — Letztere
+nur, wenn der Schalter „Benachrichtigungen" in den Einstellungen an ist (siehe
+[Benachrichtigungen](#benachrichtigungen); `benachrichtigungenAn` in `app.js`).
+
+## Benachrichtigungen
+
+Ein Schalter in den Einstellungen für zwei Dinge: das Signal am Sitzungsende
+(siehe oben) und eine Zahl auf dem App-Icon (Badge), sobald heute noch
+Gewohnheiten offen sind — sobald die App auf dem Handy zum Home-Bildschirm
+hinzugefügt wurde. Baugleich zum gleichnamigen Feature der ToDo-Liste, dort
+ausführlicher dokumentiert (`ToDo/web/BETRIEB.md`); hier nur, was abweicht.
+
+**„Offen" heißt wie in der Tagesansicht selbst** (`istHeuteDran()` +
+Tages-Status in `app.js`, serverseitig gespiegelt in
+`functions/api/push/pruefen.js`, da der Cron-Aufruf ohne geladenen
+`state` auskommen muss): heute überhaupt dran (`taeglich` immer,
+`wochentage` nur an geplanten Tagen, `x_pro_woche` solange das Wochenziel
+diese Woche noch nicht erreicht ist) **und** noch nicht erledigt (Status
+`offen` oder `teilweise`).
+
+**Eigene Tabelle `fokus_push_subscriptions`, nicht ToDo's
+`push_subscriptions`.** Ein Push-Endpunkt ist pro Browser-Herkunft eindeutig
+(Fokus und ToDo laufen auf verschiedenen Domains) — läge eine
+Fokus-Anmeldung in derselben Tabelle wie ToDo's Abos, würde ToDo's Cron-Job
+sie mit auswählen (er filtert nur über `user_id`, nicht über die App) und ein
+fälliges ToDo würde eine Push-Nachricht an das Fokus-Icon schicken: falscher
+Service Worker, falscher Inhalt.
+
+**Endpunkte** unter `/api/push/`:
+- `abonnieren` (POST, angemeldet) — Abo speichern/erneuern
+- `abbestellen` (POST, angemeldet) — eigenes Abo löschen
+- `pruefen` (GET/POST) — KEIN Nutzer-Endpunkt, geteiltes Geheimnis im Header
+  `X-Cron-Secret`, siehe `PUSH_CRON_SECRET` oben
+
+**Zeitsteuerung**: derselbe externe Pinger wie bei der ToDo-Liste
+([cron-job.org](https://cron-job.org)), aber ein **eigener** Job auf
+`https://fokus.it-wolf.org/api/push/pruefen` mit dem Fokus-eigenen
+`PUSH_CRON_SECRET`. „Heute" in Europe/Berlin (`heuteBerlin()` in
+`pruefen.js`), nicht UTC.
+
+**Bekannter Kompromiss** (identisch zur ToDo-Liste): ohne Push (0 offene
+Gewohnheiten) wird die Zahl im Hintergrund NICHT auf 0 gesetzt — eine
+„stille" Push-Nachricht ist bei iOS/Chrome nicht zuverlässig erlaubt. Sie
+stimmt spätestens beim nächsten Öffnen der App wieder (`aktualisiereBadge()`
+in `app.js`, bei jedem Rendern der Tagesansicht neu berechnet). In der Praxis
+kein Problem: eine Gewohnheit lässt sich ohnehin nur bei geöffneter App
+abhaken, genau dann läuft auch der Vordergrund-Weg.
+
+**Neu: `sw.js`.** Fokus hatte bisher keinen Service Worker — Push-Abos und der
+Hintergrund-Handler brauchen zwingend einen (`reg.pushManager.subscribe()`
+läuft über die Service-Worker-Registrierung). Als Nebeneffekt cached er auch
+die App-Shell für den Offline-Fall (network-first mit Cache-Fallback, wie bei
+der ToDo-Liste). **Bei jeder Änderung an einer gecachten Datei
+(`index.html`, `style.css`, `app.js`, `manifest.json`, Icons) die Konstante
+`CACHE_NAME` in `sw.js` hochzählen** — sonst bleibt ein wiederkehrender
+Nutzer auf dem alten Stand hängen.
+
+### Einmalig einrichten
+
+1. `migration-push.sql` einspielen:
+   `npx wrangler d1 execute todo --remote --file=migration-push.sql`
+2. `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` im Fokus-Pages-Projekt setzen —
+   dieselben Werte, die im ToDo-Projekt schon stehen (Cloudflare-Dashboard →
+   Pages → todo → Settings → Environment variables, dort ablesen)
+3. `PUSH_CRON_SECRET` setzen — ein neuer, zufälliger Wert, nicht der von ToDo
+4. Bei cron-job.org einen zweiten Job anlegen: GET oder POST auf
+   `https://fokus.it-wolf.org/api/push/pruefen`, Header
+   `X-Cron-Secret: <Wert von PUSH_CRON_SECRET>`, gleiche Häufigkeit wie der
+   bestehende ToDo-Job
 
 ## Lokal testen
 
@@ -312,6 +385,8 @@ laden. HttpOnly stört nicht — der Server prüft nur den Wert.
 | `GET /api/fokus?heute=` | Laufende Sitzung, Einstellungen, Wochenstatistik |
 | `POST /api/fokus/start` \| `/pause` \| `/stop` | Sitzung steuern (`pause` ist ein Umschalter) |
 | `PUT /api/fokus/einstellungen` | Standarddauer |
+| `POST /api/push/abonnieren` \| `/abbestellen` | Push-Abo speichern/löschen (angemeldet) |
+| `GET/POST /api/push/pruefen` | Cron-Ziel, kein Nutzer-Endpunkt — siehe [Benachrichtigungen](#benachrichtigungen) |
 
 Der Typ einer Gewohnheit lässt sich **nicht** ändern. Aus binär „mit Zielmenge"
 zu machen würde die ganze Historie neu bewerten — aus jedem Häkchen würde

@@ -435,6 +435,35 @@ function istHeuteDran(gewohnheit) {
   return true;
 }
 
+// ---------- App-Icon-Badge (installierte PWA) ----------
+// Heute dran UND noch nicht erledigt/teilweise - dieselbe Definition von
+// "offen", die die Karten in renderHeute() gelb bzw. ungefaerbt zeigen.
+function offeneGewohnheitenHeute() {
+  let n = 0;
+  for (const g of state.gewohnheiten.filter(x => !x.archiviert)) {
+    if (!istHeuteDran(g)) continue;
+    const tag = tagVon(g.id, state.heute);
+    const st = tag ? tag.status : "offen";
+    if (st === "offen" || st === "teilweise") n++;
+  }
+  return n;
+}
+
+// Laeuft die App gerade offen mit (im Vordergrund), aktualisiert sich die
+// Zahl sofort bei jedem renderHeute() - z. B. wenn man eine Gewohnheit
+// abhakt. Im Hintergrund uebernimmt der Push aus pruefen.js/sw.js dieselbe
+// Zahl; ohne Push (0 offen) wird sie dort NICHT aktiv auf 0 gesetzt (siehe
+// BETRIEB.md) - dieser Weg hier holt das beim naechsten Oeffnen nach.
+let letzteBadgeZahl = null;
+function aktualisiereBadge() {
+  if (!("setAppBadge" in navigator)) return;
+  const n = offeneGewohnheitenHeute();
+  if (n === letzteBadgeZahl) return;
+  letzteBadgeZahl = n;
+  if (n > 0) navigator.setAppBadge(n).catch(() => {});
+  else navigator.clearAppBadge().catch(() => {});
+}
+
 function renderHeute() {
   const liste = $("heuteListe");
   liste.replaceChildren();
@@ -448,6 +477,7 @@ function renderHeute() {
       ? "Heute ist keine Gewohnheit dran."
       : "Noch keine Gewohnheit. Leg unten deine erste an.";
     liste.appendChild(p);
+    aktualisiereBadge();
     return;
   }
 
@@ -561,6 +591,7 @@ function renderHeute() {
 
     liste.appendChild(karte);
   }
+  aktualisiereBadge();
 }
 
 /**
@@ -912,7 +943,12 @@ function piep() {
 function meldeFertig(minuten) {
   document.title = "✓ Fertig — Fokus";
   piep();
-  if ("Notification" in window && Notification.permission === "granted") {
+  // benachrichtigungenAn ist der App-eigene An/Aus-Zustand (siehe
+  // aktualisierePushSchalter()) - Notification.permission allein reicht
+  // nicht, denn die bleibt "granted", auch wenn der Schalter in den
+  // Einstellungen auf Aus steht (der Browser laesst sich eine einmal erteilte
+  // Erlaubnis nicht per JS wieder entziehen).
+  if (benachrichtigungenAn && "Notification" in window && Notification.permission === "granted") {
     try {
       new Notification("Fokus-Sitzung fertig", { body: `${minuten} Minuten geschafft.`, icon: "icon-192.png" });
     } catch (e) { /* manche Browser erlauben das nur aus einem Service Worker */ }
@@ -1310,33 +1346,6 @@ function renderArchiv() {
   aktualisiereEinSubtexte();
 }
 
-// Kein Akkordeon mehr - Status steckt nur noch im Kurztext neben dem Knopf
-// (bzw. statt des Knopfs, sobald erlaubt/blockiert/nicht unterstuetzt).
-function renderBenachrichtigung() {
-  const knopf = $("einBenachrichtigung");
-  const sub = $("subErinnerung");
-  if (!("Notification" in window)) {
-    knopf.hidden = true;
-    sub.textContent = "nicht unterstützt";
-    return;
-  }
-  if (Notification.permission === "granted") {
-    knopf.hidden = true;
-    sub.textContent = "erlaubt";
-  } else if (Notification.permission === "denied") {
-    knopf.hidden = true;
-    sub.textContent = "blockiert";
-  } else {
-    knopf.hidden = false;
-    sub.textContent = "";
-  }
-}
-
-$("einBenachrichtigung").onclick = async () => {
-  await Notification.requestPermission();
-  renderBenachrichtigung();
-};
-
 // Vor der Freischaltung: Klick holt den Zugang (wie frueher der Knopf), der
 // Link fuehrt noch nirgends hin. Danach ist es ein ganz normaler Link zur
 // anderen App - der Browser uebernimmt, kein weiterer Klick-Handler noetig.
@@ -1372,7 +1381,7 @@ $("einstellungenBtn").onclick = () => {
   $("einKontoName").textContent = state.name || "Konto";
   $("einKontoMail").textContent = state.email;
   renderArchiv();
-  renderBenachrichtigung();
+  aktualisierePushSchalter();
   aktualisiereEinSubtexte();
   resetAkkordeon();
   $("einPopup").hidden = false;
@@ -1471,5 +1480,117 @@ document.addEventListener("keydown", (e) => {
 // greifen, obwohl der Finger schon auf der Tastatur liegt.
 $("gewName").addEventListener("keydown", (e) => { if (e.key === "Enter") $("gewSpeichern").click(); });
 $("tagMenge").addEventListener("keydown", (e) => { if (e.key === "Enter") $("tagSpeichern").click(); });
+
+// ---------- Offline: App-Shell-Cache ----------
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
+// ---------- Push-Benachrichtigungen ----------
+// PushManager existiert im Safari-Tab auf dem iPhone gar nicht (erst ab
+// iOS 16.4, und nur fuer eine vom Home-Bildschirm gestartete, installierte
+// App) - der Schalter in den Einstellungen blendet sich dann aus und zeigt
+// stattdessen den Hinweis.
+
+// Oeffentlicher VAPID-Schluessel - unbedenklich im Client-Code, der private
+// Gegenpart liegt nur als VAPID_PRIVATE_KEY im Pages-Projekt (siehe
+// functions/_lib/webpush.js). Dasselbe Schluesselpaar wie in der ToDo-Liste:
+// VAPID identifiziert den absendenden Server gegenueber dem Push-Dienst,
+// nicht die Herkunfts-Domain - ein Wiederverwenden ist unbedenklich.
+const VAPID_PUBLIC_KEY = "BGDQTQDoRHFvbkqBEc5t_-A_Xa-QyUIzzN56qZigMR5jSCU8wF7HNv1EHOG91lFrQaui2xElzlLLCLkvdKjnypA";
+
+function base64UrlZuBytes(base64url) {
+  const pad = "=".repeat((4 - (base64url.length % 4)) % 4);
+  const base64 = (base64url + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const roh = atob(base64);
+  const bytes = new Uint8Array(roh.length);
+  for (let i = 0; i < roh.length; i++) bytes[i] = roh.charCodeAt(i);
+  return bytes;
+}
+
+const pushUnterstuetzt = () => "serviceWorker" in navigator && "PushManager" in window;
+
+async function aktuelleSubscription() {
+  if (!pushUnterstuetzt()) return null;
+  const reg = await navigator.serviceWorker.ready;
+  return await reg.pushManager.getSubscription();
+}
+
+// Ob Benachrichtigungen an sind - steuert sowohl das Sitzungsende-Signal
+// (meldeFertig()) als auch, ob der Hintergrund-Push ueberhaupt greift.
+// Ausserhalb von aktualisierePushSchalter()/schaltePushUm() nicht direkt
+// setzen.
+let benachrichtigungenAn = false;
+
+// Bei jedem Oeffnen der Einstellungen den Schalter auf den echten Stand
+// bringen - eine Berechtigung kann sich auch ausserhalb der App aendern
+// (z. B. in den iOS-Systemeinstellungen entzogen).
+async function aktualisierePushSchalter() {
+  const wrap = $("pushSwitchWrap");
+  const hinweis = $("pushHinweis");
+  if (!pushUnterstuetzt()) {
+    wrap.hidden = true;
+    hinweis.hidden = false;
+    hinweis.textContent = "Auf dem iPhone nur verfügbar, wenn die App vom Home-Bildschirm aus geöffnet ist.";
+    benachrichtigungenAn = false;
+    return;
+  }
+  wrap.hidden = false;
+  hinweis.hidden = true;
+  const sub = await aktuelleSubscription().catch(() => null);
+  const an = !!sub && Notification.permission === "granted";
+  benachrichtigungenAn = an;
+  $("pushSwitch").checked = an;
+  $("pushSwitchLabel").textContent = an ? "An" : "Aus";
+}
+
+async function schaltePushUm() {
+  const schalter = $("pushSwitch");
+  if (schalter.checked) {
+    try {
+      const erlaubnis = await Notification.requestPermission();
+      if (erlaubnis !== "granted") { schalter.checked = false; return; }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64UrlZuBytes(VAPID_PUBLIC_KEY),
+      });
+      const roh = sub.toJSON();
+      const res = await fetch("/api/push/abonnieren", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: roh.endpoint, keys: roh.keys }),
+      });
+      if (!res.ok) {
+        await sub.unsubscribe().catch(() => {});
+        schalter.checked = false;
+        melde("Anmelden hat nicht geklappt.");
+        return;
+      }
+      benachrichtigungenAn = true;
+      $("pushSwitchLabel").textContent = "An";
+    } catch (e) {
+      schalter.checked = false;
+      melde("Benachrichtigungen ließen sich nicht aktivieren.");
+    }
+  } else {
+    try {
+      const sub = await aktuelleSubscription();
+      if (sub) {
+        await fetch("/api/push/abbestellen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+        await sub.unsubscribe();
+      }
+    } catch (e) { /* Schalter bleibt trotzdem aus */ }
+    benachrichtigungenAn = false;
+    $("pushSwitchLabel").textContent = "Aus";
+  }
+}
+$("pushSwitch").addEventListener("change", schaltePushUm);
 
 start();

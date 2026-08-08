@@ -263,12 +263,16 @@
       </div>
     </details>
 
-    <div class="ein-abschnitt ein-zeile" data-abschnitt="erinnerung">
+    <div class="ein-abschnitt ein-zeile" data-abschnitt="benachrichtigungen">
       <span class="ein-kopf-icon">🔔</span>
-      <span class="ein-kopf-text">Erinnerung am Sitzungsende</span>
-      <span class="ein-kopf-sub" id="subErinnerung"></span>
-      <button type="button" class="btn klein" id="einBenachrichtigung">Erlauben</button>
+      <span class="ein-kopf-text">Benachrichtigungen</span>
+      <label class="switch" id="pushSwitchWrap">
+        <input type="checkbox" id="pushSwitch">
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+        <span class="switch-label" id="pushSwitchLabel">Aus</span>
+      </label>
     </div>
+    <p class="hinweis" id="pushHinweis" hidden></p>
 
     <details class="ein-abschnitt" id="archivAbschnitt" data-abschnitt="archiv">
       <summary class="ein-kopf">

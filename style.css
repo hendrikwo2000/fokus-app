@@ -559,6 +559,11 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 
 /* ---------- Toggle-Switch (aus ToDo/web/style.css uebernommen) ---------- */
 .switch { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+/* Ohne dieses [hidden] gewinnt "display: inline-flex" oben gegen das
+   hidden-Attribut (gleiche Spezifitaet, spaeter in der Kaskade) - siehe
+   .ein-abschnitt[hidden] weiter unten fuer denselben Fall. Betrifft
+   pushSwitchWrap, sobald PushManager fehlt (z. B. iPhone-Browser-Tab). */
+.switch[hidden] { display: none; }
 .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
 .switch-track {
   flex: none;
@@ -606,9 +611,6 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .ein-abschnitt[open] > .ein-kopf .ein-kopf-pfeil { transform: rotate(180deg); }
 
 .ein-inhalt { display: flex; flex-direction: column; gap: 8px; padding: 2px 2px 14px; }
-/* Gleiche Falle wie oben: .popup-box .btn setzt display:inline-flex, ohne
-   diese Zeile bliebe der Knopf trotz hidden-Attribut sichtbar. */
-#einBenachrichtigung[hidden] { display: none; }
 
 /* ".popup-box p" (Typ+Klasse) waere sonst spezifischer als eine reine
    Klassen-Regel und wuerde Groesse/Farbe hier ueberstimmen. */
