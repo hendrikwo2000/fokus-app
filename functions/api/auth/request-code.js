@@ -1,16 +1,14 @@
 /**
  * Schritt 1 des Logins: Code per Mail verschicken.
  *
- * Gespiegelt aus der ToDo-Liste, mit einem Unterschied: hier muss die Adresse
- * zusaetzlich fokus_zugang=1 haben (eigene Berechtigung, unabhaengig vom
- * ToDo-Konto - siehe schema.sql). Die Pruefung sitzt VOR dem Versand, damit an
- * fremde oder nicht freigeschaltete Adressen gar keine Mail rausgeht.
+ * Gespiegelt aus der ToDo-Liste. Unbekannte Adressen (kein Konto ueberhaupt)
+ * bekommen 404 - das Frontend wechselt dann in den Wartelisten-Schritt.
  *
- * Zwei verschiedene Absagen, bewusst unterschieden: 404 "kein Konto" (die
- * Adresse taucht ueberhaupt nicht in users auf - das Frontend wechselt dann in
- * den Wartelisten-Schritt, genau wie in der ToDo-Liste) gegen 403 "nicht
- * freigeschaltet" (ein Konto existiert, hat aber kein fokus_zugang - dafuer
- * hilft kein erneutes Eintragen, sondern nur die Freischaltung im Dashboard).
+ * Ein KONTO ohne fokus_zugang bekommt dagegen KEINE Absage mehr: der
+ * Login-Versuch selbst gilt als Freischaltung fuer den Fokus-Tracker - still,
+ * ohne eigene Meldung, genau wie ein ganz normaler Login. Einmal wurde jemand
+ * ueber eine der beiden Wartelisten freigeschaltet, jede weitere App braucht
+ * keinen Admin mehr (siehe Kommentar bei todo_zugang in schema.sql).
  *
  * Kein Turnstile hier, anders als bei der ToDo-Warteliste - dieselbe
  * Abwaegung wie dort am Anfang: das Ein-Eintrag-pro-Minute-Limit reicht als
@@ -73,7 +71,7 @@ export async function onRequestPost({ request, env }) {
       return json({ error: "Für diese Adresse gibt es noch kein Konto." }, 404);
     }
     if (!nutzer.fokus_zugang) {
-      return json({ error: "Diese Adresse ist für den Fokus-Tracker nicht freigeschaltet." }, 403);
+      await env.DB.prepare("UPDATE users SET fokus_zugang = 1 WHERE id = ?").bind(nutzer.id).run();
     }
     // Mindestabstand zwischen zwei Anforderungen fuer dieselbe Adresse -
     // verhindert, dass ein Postfach mit Code-Mails geflutet wird. Die Tabelle

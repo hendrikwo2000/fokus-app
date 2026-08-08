@@ -34,32 +34,53 @@ Konto. Die App fragt vorher nach und sagt das dazu.
 
 Angemeldet zu sein reicht nicht. Wer den Fokus-Tracker benutzen darf, steht in
 der geteilten `users`-Tabelle: Spalte **`users.fokus_zugang`** (0/1),
-unabhängig von `role` und vom ToDo-Zugang. Ein ToDo-Konto gibt NICHT
-automatisch Fokus-Zugang — Fokus ist Eigennutz-Werkzeug, kein Angebot für alle
-ToDo-Nutzer (Begründung im Kommentar zu `users` in `ToDo/web/schema.sql`).
+unabhängig von `role` und von der Schwester-Spalte `todo_zugang`. Ein
+ToDo-Konto gibt NICHT automatisch Fokus-Zugang — Fokus ist Eigennutz-Werkzeug,
+kein Angebot für alle ToDo-Nutzer (Begründung im Kommentar zu `users` in
+`ToDo/web/schema.sql`).
 
 **Bis 08.08.2026 stand das in der Umgebungsvariable `FOKUS_ZUGANG`** auf diesem
 Pages-Projekt — von `todo.it-wolf.org/admin` aus weder einsehbar noch
-änderbar. Jetzt sitzt die Berechtigung in der Datenbank
+änderbar. Seither sitzt die Berechtigung in der Datenbank
 (`migration-fokus-zugang.sql` in `ToDo/web/`) und lässt sich aus demselben
 Dashboard vergeben wie der ToDo-Zugang: Nutzerliste → „Fokus-Zugang
 geben/entziehen". `functions/_lib/zugang.js` (`darfRein`) fragt das bei jedem
 Zugriff frisch ab, nicht aus dem Cookie — sonst behielte jemand entzogenen
 Zugang bis zu 400 Tage (so lange gilt die Sitzung).
 
-**Neue Adressen** kommen über die eigene „Noch keinen Zugang?"-Maske hier auf
-der Seite (`POST /api/waitlist`, schreibt mit `quelle='fokus'` in dieselbe
-`waitlist`-Tabelle wie die ToDo-Liste). Freischalten passiert weiterhin nur
-unter `todo.it-wolf.org/admin` — dort setzt es bei `quelle='fokus'` gleich
-`fokus_zugang=1` mit. Details und Begründung stehen im Abschnitt „Fokus-Zugang"
-in `ToDo/web/BETRIEB.md`, nicht doppelt hier.
+**Neue Adressen** (noch gar kein Konto) kommen über die eigene „Noch keinen
+Zugang?"-Maske hier auf der Seite (`POST /api/waitlist`, schreibt mit
+`quelle='fokus'` in dieselbe `waitlist`-Tabelle wie die ToDo-Liste).
+Freischalten passiert weiterhin nur unter `todo.it-wolf.org/admin` — dort
+setzt es bei `quelle='fokus'` `fokus_zugang=1` (und NICHT `todo_zugang`).
 
-Geprüft wird an drei Stellen: beim Anfordern des Codes (damit an fremde oder
-nicht freigeschaltete Adressen gar keine Mail rausgeht), beim Einlösen — und
-**in jedem Daten-Endpunkt** (`nutzerOderFehler` in `_lib/zugang.js`). Ohne den
-letzten Punkt käme jemand mit einer gültigen ToDo-Sitzung per `curl` direkt an
-die API. Ein gesperrtes Konto bekommt **403**, nicht 401: es ist ja angemeldet,
-ein 401 würde die App in eine Anmeldeschleife schicken.
+**Seit 08.08.2026 symmetrisch selbstbedienbar: nur die erste Freischaltung
+braucht einen Admin.** Ein Konto mit `todo_zugang` aber ohne `fokus_zugang`
+(z. B. ein reines ToDo-Konto) holt sich Fokus selbst, zwei gleichwertige Wege -
+keiner davon geht über die Warteliste oder einen Admin:
+- Knopf „Zugang zur ToDo-Liste holen" bzw. hier umgekehrt „Zugang zum
+  Fokus-Tracker holen" in den Einstellungen der App, die schon da ist -
+  `POST /api/auth/fokus-zugang` (ToDo-Seite) / `POST /api/auth/todo-zugang`
+  (hier), setzt die Spalte sofort, ohne Rückfrage.
+- Einfach ein Login-Versuch hier: `request-code.js` setzt `fokus_zugang=1`
+  still mit, BEVOR der Code verschickt wird - sieht wie ein ganz normaler
+  Login aus, keine eigene Meldung. Genauso `link.js` beim Einlösen eines
+  Anmeldelinks, der drüben (ToDo) angefordert wurde - `login_codes` ist
+  geteilt, ein dort erzeugter Link kann also legitim hier landen.
+
+Jeder kann seinen eigenen Fokus-Zugang auch wieder aufgeben, ohne die
+Gewohnheiten/Historie zu löschen: Einstellungen → „Fokus-Zugang aufgeben"
+(`POST /api/auth/zugang-aufgeben`, eigene Datei pro App - ToDo hat ihre
+eigene gleichnamige für `todo_zugang`). Ein erneuter Login-Versuch holt den
+Zugang genau wie oben beschrieben von selbst zurück.
+
+Geprüft wird an zwei Stellen: beim Einlösen des Codes/Links (`verify-code.js`,
+`link.js` - defensiv, falls `fokus_zugang` zwischen Codeversand und Einlösen
+entzogen wurde) und **in jedem Daten-Endpunkt**
+(`nutzerOderFehler` in `_lib/zugang.js`). Ohne den zweiten Punkt käme jemand
+mit einer gültigen ToDo-Sitzung per `curl` direkt an die API. Ein gesperrtes
+Konto bekommt **403**, nicht 401: es ist ja angemeldet, ein 401 würde die App
+in eine Anmeldeschleife schicken.
 
 ## Variablen
 
@@ -189,11 +210,13 @@ Bequemer über `.claude/launch.json` im Arbeitsverzeichnis `Documents/Claude-Cod
 Eintrag `fokus`.
 
 Fokus-Zugang kommt jetzt aus der Datenbank, nicht mehr aus einem `--binding` -
-nach dem Einspielen von `ToDo/web/schema.sql` (oder alt + `migration-fokus-zugang.sql`,
-siehe unten) den Testnutzer freischalten:
+nach dem Einspielen von `ToDo/web/schema.sql` (oder alt + den beiden
+`migration-*-zugang.sql`, siehe unten) den Testnutzer freischalten. Ohne
+`todo_zugang=1` kommt man lokal nicht mal an der ToDo-Seite vorbei, um erst
+dort ein Konto zu holen - deshalb hier beide Spalten gleich mit:
 
 ```sql
-UPDATE users SET fokus_zugang = 1 WHERE id = 1;
+UPDATE users SET fokus_zugang = 1, todo_zugang = 1 WHERE id = 1;
 ```
 
 ### Falle: eigene, leere Datenbank
@@ -208,9 +231,10 @@ Einspielen muss man deshalb **alle drei**: den Auth-Kern (`users`, `sessions`,
 `migration-rhythmus.sql` (bei einer ganz frischen lokalen DB reicht das
 aktualisierte `schema-fokus.sql` allein, die Migration ist nur für eine lokale
 DB noetig, die vor dem Rhythmus-Feature angelegt wurde). Genauso mit
-`migration-fokus-zugang.sql` (aus `ToDo/web/`) — nur nötig, wenn die lokale
-`users`/`waitlist` aus einem `schema.sql`-Stand vor dem 08.08.2026 stammt; ein
-frisch eingespieltes `schema.sql` hat `fokus_zugang`/`quelle` schon direkt drin.
+`migration-fokus-zugang.sql` und `migration-todo-zugang.sql` (beide aus
+`ToDo/web/`) — nur nötig, wenn die lokale `users`/`waitlist` aus einem
+`schema.sql`-Stand vor dem 08.08.2026 stammt; ein frisch eingespieltes
+`schema.sql` hat `todo_zugang`/`fokus_zugang`/`quelle` schon direkt drin.
 
 ### Falle: `wrangler d1 execute --local` stürzt auf Windows ab
 
@@ -274,12 +298,14 @@ laden. HttpOnly stört nicht — der Server prüft nur den Wert.
 
 | Route | Was |
 | --- | --- |
-| `POST /api/auth/request-code` | Code + Anmeldelink per Mail. 404 ohne Konto (Frontend wechselt zur Warteliste), 403 ohne `fokus_zugang`. |
-| `POST /api/auth/verify-code` | Code einlösen, Sitzung anlegen |
-| `GET /api/auth/link?t=` | Anmeldelink einlösen, 302 statt JSON |
+| `POST /api/auth/request-code` | Code + Anmeldelink per Mail. 404 ohne Konto (Frontend wechselt zur Warteliste); mit Konto aber ohne `fokus_zugang` wird die Spalte still mitgesetzt, keine Absage mehr. |
+| `POST /api/auth/verify-code` | Code einlösen, Sitzung anlegen. 403, falls `fokus_zugang` zwischen Codeversand und Einlösen entzogen wurde (defensiv, selten). |
+| `GET /api/auth/link?t=` | Anmeldelink einlösen, 302 statt JSON. Setzt `fokus_zugang` genau wie request-code.js still mit. |
+| `POST /api/auth/todo-zugang` | Sich selbst `todo_zugang=1` geben (angemeldet + `fokus_zugang` vorausgesetzt) |
+| `POST /api/auth/zugang-aufgeben` | Eigenen `fokus_zugang` auf 0 setzen, Daten bleiben |
 | `POST /api/auth/logout` | Sitzung serverseitig löschen (gilt für beide Apps) |
 | `GET /api/auth/status` | `{angemeldet}` — immer 200, wird im Sekundentakt gepollt |
-| `POST /api/waitlist` | Eintragen für Fokus-Zugang (`quelle='fokus'`). Freischalten nur unter `todo.it-wolf.org/admin`. |
+| `POST /api/waitlist` | Eintragen für Fokus-Zugang (`quelle='fokus'`). Existiert das Konto schon, wird `fokus_zugang` direkt gesetzt statt auf `todo.it-wolf.org/admin` zu verweisen. |
 | `GET /api/gewohnheiten?heute=` | Bootstrap: Gewohnheiten, volle Log-Historie (`historieAb` bis `heute`), Strähnen |
 | `POST/PATCH/DELETE /api/gewohnheiten` | Anlegen, ändern/archivieren, endgültig löschen |
 | `PUT /api/gewohnheiten/log` | Einen Tag setzen — der einzige Schreibweg für Tage |

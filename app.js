@@ -251,9 +251,9 @@ function anmelden() {
           if (!ok) {
             // Kein Konto: direkt in den Wartelisten-Modus wechseln, statt es
             // als Sackgasse zu praesentieren. Die Adresse bleibt stehen, es
-            // fehlt nur noch der Name. Ein Konto ohne fokus_zugang (403)
-            // bleibt dagegen auf dem Login-Schritt - Eintragen wuerde daran
-            // nichts aendern, das entscheidet die Verwaltung.
+            // fehlt nur noch der Name. Ein Konto ohne fokus_zugang schaltet
+            // sich hier still selbst frei (siehe request-code.js) - der
+            // else-Zweig unten sieht also nur noch echte Fehler wie 429/500.
             if (status === 404) {
               zeigeWarteliste();
               setzeMeldung((daten.error || "") + " Trag dich ein, dann schalte ich dich frei.");
@@ -319,9 +319,8 @@ function anmelden() {
     // Hinweis staende man wieder vor der Maske und wuesste nicht, warum.
     const grund = new URLSearchParams(location.search).get("login");
     if (grund) {
-      setzeMeldung(
-        grund === "abgelaufen" ? "Der Link ist abgelaufen oder wurde schon benutzt. Fordere einen neuen an."
-        : grund === "gesperrt" ? "Diese Adresse ist für den Fokus-Tracker nicht freigeschaltet."
+      setzeMeldung(grund === "abgelaufen"
+        ? "Der Link ist abgelaufen oder wurde schon benutzt. Fordere einen neuen an."
         : "Die Anmeldung über den Link hat nicht geklappt.");
       history.replaceState(null, "", location.pathname);
     }
@@ -358,6 +357,7 @@ async function ladeGewohnheiten() {
   state.historieAb = d.historieAb;
   state.email = d.email;
   state.name = d.name;
+  state.todoZugang = d.todoZugang;
   return null;
 }
 
@@ -1169,11 +1169,44 @@ $("einBenachrichtigung").onclick = async () => {
   renderBenachrichtigung();
 };
 
+// Knopf nur zeigen, solange der Zugang noch fehlt - wer ihn schon hat,
+// bekommt nur den Hinweistext (das Aufgeben passiert drueben in ToDo's
+// eigenen Einstellungen, nicht hier).
+function renderToDoAbschnitt() {
+  $("todoHolen").hidden = !!state.todoZugang;
+  $("todoHinweis").textContent = state.todoZugang
+    ? "Du hast auch Zugang zur ToDo-Liste."
+    : "Listen, Bereiche und ToDos, mit derselben Anmeldung.";
+}
+
+$("todoHolen").onclick = async () => {
+  const btn = $("todoHolen");
+  btn.disabled = true;
+  const antwort = await api("/api/auth/todo-zugang", { method: "POST" });
+  btn.disabled = false;
+  if (!antwort.ok) { melde(antwort.daten.error || "Hat nicht geklappt."); return; }
+  state.todoZugang = true;
+  renderToDoAbschnitt();
+  melde("Zugang zur ToDo-Liste freigeschaltet.");
+};
+
+$("fokusZugangAufgeben").onclick = async () => {
+  const ok = await frage("Fokus-Zugang aufgeben?",
+    "Deine Gewohnheiten und ihr Verlauf bleiben erhalten. Du kommst " +
+    "jederzeit wieder rein — einfach erneut anmelden.",
+    "Ja, Zugang aufgeben");
+  if (!ok) return;
+  await api("/api/auth/zugang-aufgeben", { method: "POST" });
+  $("einPopup").hidden = true;
+  zeigeGesperrt("Du hast deinen Fokus-Zugang aufgegeben.");
+};
+
 $("einstellungenBtn").onclick = () => {
   $("einDauer").value = String(fokus.arbeitMin);
   $("einKonto").textContent = `Angemeldet als ${state.email}`;
   renderArchiv();
   renderBenachrichtigung();
+  renderToDoAbschnitt();
   $("einPopup").hidden = false;
 };
 $("einSchliessen").onclick = () => { $("einPopup").hidden = true; };

@@ -19,13 +19,21 @@
 import { angemeldeterNutzer } from "./session.js";
 import { json } from "./antwort.js";
 
-export async function darfRein(env, email) {
+// Liest beide Zugangsspalten in einem Rutsch: fokus_zugang fuer die
+// eigentliche Pruefung, todo_zugang nur zum Weiterreichen (Einstellungen
+// zeigen, ob die andere App schon freigeschaltet ist, ohne dafuer eine
+// zweite Abfrage zu brauchen).
+async function zeile(env, email) {
   const adresse = String(email || "").trim().toLowerCase();
-  if (!adresse) return false;
-  const zeile = await env.DB.prepare(
-    "SELECT fokus_zugang FROM users WHERE email = ?"
+  if (!adresse) return null;
+  return await env.DB.prepare(
+    "SELECT fokus_zugang, todo_zugang FROM users WHERE email = ?"
   ).bind(adresse).first();
-  return !!(zeile && zeile.fokus_zugang);
+}
+
+export async function darfRein(env, email) {
+  const z = await zeile(env, email);
+  return !!(z && z.fokus_zugang);
 }
 
 /**
@@ -38,10 +46,10 @@ export async function darfRein(env, email) {
 export async function nutzerOderFehler(request, env) {
   if (!env.DB) return { fehler: json({ error: "D1-Bindung DB fehlt im Pages-Projekt" }, 500) };
 
-  let nutzer, erlaubt;
+  let nutzer, z;
   try {
     nutzer = await angemeldeterNutzer(request, env);
-    if (nutzer) erlaubt = await darfRein(env, nutzer.email);
+    if (nutzer) z = await zeile(env, nutzer.email);
   } catch (e) {
     return { fehler: json({ error: "Datenbankfehler" }, 500) };
   }
@@ -49,8 +57,8 @@ export async function nutzerOderFehler(request, env) {
 
   // 403, nicht 401: angemeldet ist die Person ja. Ein 401 wuerde die App in die
   // Anmeldemaske schicken, wo sie sich endlos im Kreis anmelden koennte.
-  if (!erlaubt) {
+  if (!z || !z.fokus_zugang) {
     return { fehler: json({ error: "Dieses Konto ist für den Fokus-Tracker nicht freigeschaltet." }, 403) };
   }
-  return { nutzer, nutzerId: nutzer.id };
+  return { nutzer, nutzerId: nutzer.id, todoZugang: !!z.todo_zugang };
 }

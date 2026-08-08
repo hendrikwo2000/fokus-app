@@ -22,7 +22,7 @@ export async function onRequestGet({ request, env }) {
   try {
     if (env.DB) {
       const nutzer = await angemeldeterNutzer(request, env);
-      angemeldet = !!nutzer && darfRein(env, nutzer.email);
+      angemeldet = !!nutzer && (await darfRein(env, nutzer.email));
     }
   } catch (e) {
     // Datenbank kurz weg: als "noch nicht angemeldet" behandeln, die naechste

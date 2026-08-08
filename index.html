@@ -232,11 +232,22 @@
       <p class="hinweis" id="archivLeer">Noch nichts archiviert.</p>
     </div>
 
+    <!-- ToDo-Zugang ist eine eigene Berechtigung, unabhaengig vom
+         Fokus-Konto (siehe schema.sql). "Holen" braucht keine Rueckfrage -
+         rein additiv, jederzeit in ToDo's eigenen Einstellungen wieder
+         aufgebbar. -->
+    <div class="abschnitt">
+      <h3>ToDo-Liste</h3>
+      <p class="hinweis" id="todoHinweis"></p>
+      <button class="btn" id="todoHolen">Zugang zur ToDo-Liste holen</button>
+    </div>
+
     <div class="abschnitt">
       <h3>Konto</h3>
       <p class="hinweis" id="einKonto"></p>
       <p class="hinweis">Abmelden meldet dich auch aus der ToDo-Liste ab — es ist dieselbe Sitzung.</p>
       <button class="btn gefahr" id="einAbmelden">Abmelden</button>
+      <button class="btn gefahr" id="fokusZugangAufgeben">Fokus-Zugang aufgeben</button>
     </div>
 
     <button type="button" class="lock-link" id="einSchliessen">Schließen</button>

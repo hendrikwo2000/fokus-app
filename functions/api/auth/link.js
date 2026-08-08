@@ -7,10 +7,16 @@
  *
  * Antwortet mit einer Weiterleitung statt JSON: der Aufruf kommt aus einem
  * Mailprogramm, nicht aus der App.
+ *
+ * login_codes ist mit der ToDo-Liste geteilt - ein dort angeforderter oder
+ * per Willkommensmail verschickter Link kann also auch hier landen (z. B. ein
+ * reines ToDo-Konto, dessen Willkommensmail ueber die ToDo-Liste verschickt
+ * wurde). Genau wie beim Anfordern eines Codes (request-code.js) gilt: ein
+ * gueltiger Link IST der Login-Versuch, der fokus_zugang gleich mit setzt -
+ * kein separater "gesperrt"-Fall mehr noetig.
  */
 
 import { hashHex, neuesToken, setzeSessionCookies, mitCookies, SESSION_ABLAUF_SQL } from "../../_lib/session.js";
-import { darfRein } from "../../_lib/zugang.js";
 
 function weiter(ziel, cookies = []) {
   return new Response(null, {
@@ -35,13 +41,12 @@ export async function onRequestGet({ request, env }) {
     // einer nackten Fehlerseite.
     if (!eintrag) return weiter("/?login=abgelaufen");
 
-    // `login_codes` ist mit der ToDo-Liste geteilt - ein dort angeforderter
-    // Link koennte also hier landen. Ohne Freischaltung bringt er nichts.
-    if (!darfRein(env, eintrag.email)) return weiter("/?login=gesperrt");
-
-    const nutzer = await env.DB.prepare("SELECT id FROM users WHERE email = ?")
+    const nutzer = await env.DB.prepare("SELECT id, fokus_zugang FROM users WHERE email = ?")
       .bind(eintrag.email).first();
     if (!nutzer) return weiter("/?login=fehler");
+    if (!nutzer.fokus_zugang) {
+      await env.DB.prepare("UPDATE users SET fokus_zugang = 1 WHERE id = ?").bind(nutzer.id).run();
+    }
 
     const sitzung = neuesToken();
     await env.DB.batch([

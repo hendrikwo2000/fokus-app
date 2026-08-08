@@ -94,7 +94,7 @@ function pruefeRhythmus(body) {
 }
 
 export async function onRequestGet({ request, env }) {
-  const { nutzer, nutzerId, fehler } = await nutzerOderFehler(request, env);
+  const { nutzer, nutzerId, todoZugang, fehler } = await nutzerOderFehler(request, env);
   if (fehler) return fehler;
 
   const url = new URL(request.url);
@@ -155,6 +155,10 @@ export async function onRequestGet({ request, env }) {
     return json({
       email: nutzer.email,
       name: nutzer.name,
+      // Fuer den Abschnitt "ToDo-Liste" in den Einstellungen - ob die andere
+      // App schon freigeschaltet ist oder sich der Nutzer den Zugang erst
+      // noch selbst holen kann.
+      todoZugang,
       historieAb,
       heute,
       gewohnheiten: gewohnheiten.map(alsGewohnheit),

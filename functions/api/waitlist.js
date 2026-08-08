@@ -13,12 +13,11 @@
  * 3. Kein Turnstile (wie beim ToDo-Formular am Anfang auch nicht) - das
  *    Ein-Eintrag-pro-Minute-Limit ist die Bremse.
  *
- * Wer schon ein Konto hat (ToDo, aber vielleicht ohne fokus_zugang), landet
- * NICHT hier: request-code.js weicht bei einer bekannten Adresse gar nicht
- * erst in die Warteliste aus (siehe dortiger Kommentar), das Frontend zeigt
- * stattdessen direkt "nicht freigeschaltet". Dieser Endpunkt ist also fast
- * immer fuer Adressen ganz ohne Konto - die Pruefung unten bleibt trotzdem,
- * falls jemand die Maske manuell erreicht.
+ * Wer schon ein Konto hat (z. B. ein reines ToDo-Konto ohne fokus_zugang),
+ * landet normalerweise NICHT hier: der Login-Versuch selbst schaltet frei
+ * (request-code.js). Erreicht jemand diese Maske trotzdem - der naheliegende
+ * Weg fuer jemanden ohne Zugang -, schaltet die Pruefung unten genauso frei,
+ * statt auf eine Verwaltungsentscheidung zu warten.
  */
 
 import { sendeMail, huelle, absatz, kasten, knopf, fussnote } from "../_lib/mail.js";
@@ -53,13 +52,18 @@ export async function onRequestPost({ request, env }) {
   }
 
   try {
-    // Schon ein Konto? Dann gehoert die Person nicht auf die Warteliste - ihr
-    // fehlt hoechstens noch fokus_zugang, und das ist eine Sache fuer die
-    // Verwaltung, kein neuer Wartelisten-Eintrag (die E-Mail-Spalte ist ohnehin
-    // UNIQUE, ein zweiter Eintrag waere gar nicht moeglich).
-    const nutzer = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
+    // Schon ein Konto? Dann gehoert die Person nicht auf die Warteliste (die
+    // E-Mail-Spalte ist ohnehin UNIQUE, ein zweiter Eintrag waere gar nicht
+    // moeglich) - hat sie schon fokus_zugang, einfach anmelden; sonst gleich
+    // freischalten, statt auf einen Admin zu warten. Der naechste Login-
+    // Versuch wuerde ohnehin genauso freischalten, siehe request-code.js.
+    const nutzer = await env.DB.prepare("SELECT id, fokus_zugang FROM users WHERE email = ?").bind(email).first();
     if (nutzer) {
-      return json({ error: "Diese Adresse hat schon ein Konto. Für Fokus-Zugang melde dich direkt bei mir." }, 409);
+      if (!nutzer.fokus_zugang) {
+        await env.DB.prepare("UPDATE users SET fokus_zugang = 1 WHERE id = ?").bind(nutzer.id).run();
+        return json({ ok: true, message: "Du bist jetzt auch für den Fokus-Tracker freigeschaltet - melde dich einfach an." });
+      }
+      return json({ error: "Diese Adresse ist bereits freigeschaltet - melde dich einfach an." }, 409);
     }
 
     const vorhanden = await env.DB.prepare(
