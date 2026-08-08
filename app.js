@@ -23,6 +23,9 @@ const state = {
 // Gewohnheit zurueck, sobald sie leer ist oder ins Archiv/Nirwana zeigt.
 const verlauf = { gewohnheitId: null, monat: "" };
 
+// Zeitraum der Statistik-Ansicht, in Tagen (7/30/90).
+const statistik = { tage: 30 };
+
 const fokus = {
   arbeitMin: 25,
   offen: null,     // { id, geplanteMin, verstrichenSek, pausiert }
@@ -724,6 +727,87 @@ function renderKalender() {
 $("kalZurueck").onclick = () => { verlauf.monat = monatPlus(verlauf.monat, -1); renderKalender(); };
 $("kalVor").onclick = () => { verlauf.monat = monatPlus(verlauf.monat, 1); renderKalender(); };
 
+/* ------------------------------------------------------------ Statistik */
+
+// Erfuellungsquote je Gewohnheit ueber den gewaehlten Zeitraum - anders als
+// die Straehne (nur der aktuelle Lauf) ein festes Fenster, siehe
+// functions/api/gewohnheiten/statistik.js.
+async function renderStatistik() {
+  const liste = $("statistikListe");
+  const antwort = await api(`/api/gewohnheiten/statistik?heute=${state.heute}&tage=${statistik.tage}`);
+  liste.replaceChildren();
+  if (!antwort.ok) {
+    const p = document.createElement("p");
+    p.className = "leer-hinweis";
+    p.textContent = "Statistik konnte nicht geladen werden.";
+    liste.appendChild(p);
+    return;
+  }
+
+  const eintraege = antwort.daten.gewohnheiten || [];
+  if (!eintraege.length) {
+    const p = document.createElement("p");
+    p.className = "leer-hinweis";
+    p.textContent = "Noch keine Gewohnheit für eine Statistik.";
+    liste.appendChild(p);
+    return;
+  }
+
+  for (const g of eintraege) {
+    const karte = document.createElement("div");
+    karte.className = "gew";
+
+    const haupt = document.createElement("div");
+    haupt.className = "gew-haupt";
+
+    const name = document.createElement("div");
+    name.className = "gew-name";
+    name.textContent = g.name;
+    haupt.appendChild(name);
+
+    const zeile = document.createElement("div");
+    zeile.className = "gew-zeile";
+    const text = document.createElement("span");
+
+    if (g.geplant === 0) {
+      // z.B. "x pro Woche" ohne eine einzige vollstaendige Woche im
+      // gewaehlten Zeitraum - kommt bei "7 Tage" leicht vor.
+      text.textContent = `Noch keine geplanten ${g.einheit} in diesem Zeitraum`;
+      zeile.appendChild(text);
+      haupt.appendChild(zeile);
+      karte.appendChild(haupt);
+      liste.appendChild(karte);
+      continue;
+    }
+
+    const quote = Math.round((g.erledigt / g.geplant) * 100);
+    text.textContent = `${g.erledigt} von ${g.geplant} ${g.einheit} (${quote} %)`;
+    zeile.appendChild(text);
+    haupt.appendChild(zeile);
+
+    const balken = document.createElement("div");
+    balken.className = "balken";
+    const fuellung = document.createElement("i");
+    fuellung.style.width = `${Math.min(100, quote)}%`;
+    fuellung.style.background = quote >= 80 ? "var(--green)" : quote >= 40 ? "var(--yellow)" : "var(--leer)";
+    balken.appendChild(fuellung);
+    haupt.appendChild(balken);
+
+    karte.appendChild(haupt);
+    liste.appendChild(karte);
+  }
+}
+
+for (const knopf of $("statZeitraum").querySelectorAll("button")) {
+  knopf.onclick = () => {
+    statistik.tage = Number(knopf.dataset.tage);
+    for (const b of $("statZeitraum").querySelectorAll("button")) {
+      b.setAttribute("aria-selected", String(b === knopf));
+    }
+    renderStatistik();
+  };
+}
+
 /* --------------------------------------------------------------- Timer */
 
 // Verstrichene Sekunden inklusive der Zeit seit dem letzten Serverstand.
@@ -1305,12 +1389,14 @@ function zeigeAnsicht(name) {
   $("ansichtHeute").hidden = name !== "heute";
   $("ansichtVerlauf").hidden = name !== "verlauf";
   $("ansichtFokus").hidden = name !== "fokus";
+  $("ansichtStatistik").hidden = name !== "statistik";
   for (const knopf of $("reiter").querySelectorAll("button")) {
     knopf.setAttribute("aria-selected", String(knopf.dataset.ansicht === name));
   }
   if (name === "heute") renderHeute();
   if (name === "verlauf") renderVerlauf();
   if (name === "fokus") renderFokus();
+  if (name === "statistik") renderStatistik();
 }
 
 for (const knopf of $("reiter").querySelectorAll("button")) {

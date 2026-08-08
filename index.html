@@ -22,9 +22,10 @@
 </div>
 
 <nav class="reiter" id="reiter" hidden>
-  <button data-ansicht="heute"   aria-selected="true">Heute</button>
-  <button data-ansicht="verlauf" aria-selected="false">Verlauf</button>
-  <button data-ansicht="fokus"   aria-selected="false">Fokus</button>
+  <button data-ansicht="heute"     aria-selected="true">Heute</button>
+  <button data-ansicht="verlauf"   aria-selected="false">Verlauf</button>
+  <button data-ansicht="fokus"     aria-selected="false">Fokus</button>
+  <button data-ansicht="statistik" aria-selected="false">Statistik</button>
 </nav>
 
 <!-- ---------- Heute ---------- -->
@@ -77,6 +78,16 @@
   <div class="abschnitt-titel">Fokusminuten pro Woche</div>
   <div class="balken-diagramm" id="diagramm"></div>
   <div class="balken-namen" id="diagrammNamen"></div>
+</section>
+
+<!-- ---------- Statistik ---------- -->
+<section class="ansicht" id="ansichtStatistik" hidden>
+  <div class="kal-wahl" id="statZeitraum">
+    <button type="button" data-tage="7" aria-selected="false">7 Tage</button>
+    <button type="button" data-tage="30" aria-selected="true">30 Tage</button>
+    <button type="button" data-tage="90" aria-selected="false">90 Tage</button>
+  </div>
+  <div class="gew-liste" id="statistikListe"></div>
 </section>
 
 <!-- ---------- Anmeldemaske ---------- -->
