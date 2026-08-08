@@ -33,26 +33,33 @@ Konto. Die App fragt vorher nach und sagt das dazu.
 ## Zugang
 
 Angemeldet zu sein reicht nicht. Wer den Fokus-Tracker benutzen darf, steht in
-der Umgebungsvariable **`FOKUS_ZUGANG`** (kommagetrennte Adressen):
+der geteilten `users`-Tabelle: Spalte **`users.fokus_zugang`** (0/1),
+unabhängig von `role` und vom ToDo-Zugang. Ein ToDo-Konto gibt NICHT
+automatisch Fokus-Zugang — Fokus ist Eigennutz-Werkzeug, kein Angebot für alle
+ToDo-Nutzer (Begründung im Kommentar zu `users` in `ToDo/web/schema.sql`).
 
-```
-FOKUS_ZUGANG = deine@adresse.example
-```
+**Bis 08.08.2026 stand das in der Umgebungsvariable `FOKUS_ZUGANG`** auf diesem
+Pages-Projekt — von `todo.it-wolf.org/admin` aus weder einsehbar noch
+änderbar. Jetzt sitzt die Berechtigung in der Datenbank
+(`migration-fokus-zugang.sql` in `ToDo/web/`) und lässt sich aus demselben
+Dashboard vergeben wie der ToDo-Zugang: Nutzerliste → „Fokus-Zugang
+geben/entziehen". `functions/_lib/zugang.js` (`darfRein`) fragt das bei jedem
+Zugriff frisch ab, nicht aus dem Cookie — sonst behielte jemand entzogenen
+Zugang bis zu 400 Tage (so lange gilt die Sitzung).
 
-Ohne die Variable kommt **niemand** rein. Lieber ausgesperrt als offen: ein
-vergessener Eintrag fällt beim ersten Anmeldeversuch auf, eine offene App fällt
-gar nicht auf.
+**Neue Adressen** kommen über die eigene „Noch keinen Zugang?"-Maske hier auf
+der Seite (`POST /api/waitlist`, schreibt mit `quelle='fokus'` in dieselbe
+`waitlist`-Tabelle wie die ToDo-Liste). Freischalten passiert weiterhin nur
+unter `todo.it-wolf.org/admin` — dort setzt es bei `quelle='fokus'` gleich
+`fokus_zugang=1` mit. Details und Begründung stehen im Abschnitt „Fokus-Zugang"
+in `ToDo/web/BETRIEB.md`, nicht doppelt hier.
 
-Sonst gäbe jede Wartelisten-Freischaltung in der ToDo-Liste stillschweigend
-auch hier Zugang. Adressen statt Nutzer-IDs, weil man sie im Dashboard ändern
-kann, ohne vorher in der Datenbank nachzusehen.
-
-Geprüft wird an drei Stellen: beim Anfordern des Codes (damit an fremde
-Adressen gar keine Mail rausgeht), beim Einlösen — und **in jedem
-Daten-Endpunkt**. Ohne den letzten Punkt käme jemand mit einer gültigen
-ToDo-Sitzung per `curl` direkt an die API. Ein gesperrtes Konto bekommt **403**,
-nicht 401: es ist ja angemeldet, ein 401 würde die App in eine Anmeldeschleife
-schicken.
+Geprüft wird an drei Stellen: beim Anfordern des Codes (damit an fremde oder
+nicht freigeschaltete Adressen gar keine Mail rausgeht), beim Einlösen — und
+**in jedem Daten-Endpunkt** (`nutzerOderFehler` in `_lib/zugang.js`). Ohne den
+letzten Punkt käme jemand mit einer gültigen ToDo-Sitzung per `curl` direkt an
+die API. Ein gesperrtes Konto bekommt **403**, nicht 401: es ist ja angemeldet,
+ein 401 würde die App in eine Anmeldeschleife schicken.
 
 ## Variablen
 
@@ -60,8 +67,11 @@ Cloudflare-Dashboard → Pages → fokus → Settings → Environment variables.
 
 | Variable | Zweck |
 | --- | --- |
-| `FOKUS_ZUGANG` | Erlaubte Adressen, kommagetrennt. Fehlt sie, kommt niemand rein. |
 | `RESEND_KEY` | Resend-API-Key mit Sendezugriff auf `mail.it-wolf.org`. Derselbe wie bei der ToDo-Liste. Ohne ihn schlägt jeder Login fehl. |
+| `ADMIN_MAIL` | Optional: wohin Wartelisten-Benachrichtigungen aus `/api/waitlist` gehen. Ohne sie gehen sie an alle Konten mit `role='admin'`. Dieselbe Variable wie bei der ToDo-Liste, hier separat gesetzt (getrenntes Pages-Projekt). |
+
+`FOKUS_ZUGANG` gibt es seit 08.08.2026 nicht mehr — Fokus-Zugang steht jetzt in
+der Datenbank, siehe Abschnitt „Zugang" oben.
 
 Dazu die D1-Bindung: Variablenname **`DB`** → Datenbank **`todo`**.
 
@@ -172,11 +182,19 @@ Erlaubnis).
 ## Lokal testen
 
 ```bash
-npx wrangler pages dev . --d1 DB=todo --binding FOKUS_ZUGANG=deine@adresse.example --port 8792 --ip 127.0.0.1
+npx wrangler pages dev . --d1 DB=todo --port 8792 --ip 127.0.0.1
 ```
 
 Bequemer über `.claude/launch.json` im Arbeitsverzeichnis `Documents/Claude-Code`,
 Eintrag `fokus`.
+
+Fokus-Zugang kommt jetzt aus der Datenbank, nicht mehr aus einem `--binding` -
+nach dem Einspielen von `ToDo/web/schema.sql` (oder alt + `migration-fokus-zugang.sql`,
+siehe unten) den Testnutzer freischalten:
+
+```sql
+UPDATE users SET fokus_zugang = 1 WHERE id = 1;
+```
 
 ### Falle: eigene, leere Datenbank
 
@@ -189,7 +207,10 @@ Einspielen muss man deshalb **alle drei**: den Auth-Kern (`users`, `sessions`,
 `login_codes` aus `ToDo/web/schema.sql`), `schema-fokus.sql` **und**
 `migration-rhythmus.sql` (bei einer ganz frischen lokalen DB reicht das
 aktualisierte `schema-fokus.sql` allein, die Migration ist nur für eine lokale
-DB noetig, die vor dem Rhythmus-Feature angelegt wurde).
+DB noetig, die vor dem Rhythmus-Feature angelegt wurde). Genauso mit
+`migration-fokus-zugang.sql` (aus `ToDo/web/`) — nur nötig, wenn die lokale
+`users`/`waitlist` aus einem `schema.sql`-Stand vor dem 08.08.2026 stammt; ein
+frisch eingespieltes `schema.sql` hat `fokus_zugang`/`quelle` schon direkt drin.
 
 ### Falle: `wrangler d1 execute --local` stürzt auf Windows ab
 
@@ -253,11 +274,12 @@ laden. HttpOnly stört nicht — der Server prüft nur den Wert.
 
 | Route | Was |
 | --- | --- |
-| `POST /api/auth/request-code` | Code + Anmeldelink per Mail. Prüft `FOKUS_ZUGANG` vor dem Versand. |
+| `POST /api/auth/request-code` | Code + Anmeldelink per Mail. 404 ohne Konto (Frontend wechselt zur Warteliste), 403 ohne `fokus_zugang`. |
 | `POST /api/auth/verify-code` | Code einlösen, Sitzung anlegen |
 | `GET /api/auth/link?t=` | Anmeldelink einlösen, 302 statt JSON |
 | `POST /api/auth/logout` | Sitzung serverseitig löschen (gilt für beide Apps) |
 | `GET /api/auth/status` | `{angemeldet}` — immer 200, wird im Sekundentakt gepollt |
+| `POST /api/waitlist` | Eintragen für Fokus-Zugang (`quelle='fokus'`). Freischalten nur unter `todo.it-wolf.org/admin`. |
 | `GET /api/gewohnheiten?heute=` | Bootstrap: Gewohnheiten, volle Log-Historie (`historieAb` bis `heute`), Strähnen |
 | `POST/PATCH/DELETE /api/gewohnheiten` | Anlegen, ändern/archivieren, endgültig löschen |
 | `PUT /api/gewohnheiten/log` | Einen Tag setzen — der einzige Schreibweg für Tage |
@@ -279,5 +301,9 @@ Beim erstmaligen Aufsetzen:
    Ausgabe im Wurzelverzeichnis
 2. Custom Domain `fokus.it-wolf.org`
 3. D1-Bindung `DB` → `todo`
-4. `FOKUS_ZUGANG` und `RESEND_KEY` setzen
+4. `RESEND_KEY` setzen (optional `ADMIN_MAIL`)
 5. `schema-fokus.sql` in der D1-Konsole ausführen
+6. Fokus-Zugang für den ersten Nutzer setzen — unter `todo.it-wolf.org/admin`
+   („Fokus-Zugang geben") oder direkt per SQL: `UPDATE users SET
+   fokus_zugang = 1 WHERE email = '...'`. Ohne diesen Schritt kommt niemand
+   rein, auch nicht mit einem bestehenden ToDo-Konto.

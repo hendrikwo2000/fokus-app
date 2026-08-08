@@ -13,7 +13,6 @@
 
 import { hashHex, zeitgleich, neuesToken, setzeSessionCookies, SESSION_ABLAUF_SQL } from "../../_lib/session.js";
 import { json, liesJson } from "../../_lib/antwort.js";
-import { darfRein } from "../../_lib/zugang.js";
 
 export async function onRequestPost({ request, env }) {
   if (!env.DB) return json({ error: "D1-Bindung DB fehlt im Pages-Projekt" }, 500);
@@ -25,16 +24,18 @@ export async function onRequestPost({ request, env }) {
   const code = String(body?.code || "").trim();
   if (!email || !/^\d{6}$/.test(code)) return json({ error: "Ungueltige Eingabe" }, 400);
 
-  if (!darfRein(env, email)) {
-    return json({ error: "Diese Adresse ist für den Fokus-Tracker nicht freigeschaltet." }, 403);
-  }
-
   try {
-    const nutzer = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
+    const nutzer = await env.DB.prepare("SELECT id, fokus_zugang FROM users WHERE email = ?").bind(email).first();
     // Ab hier bleibt die Meldung generisch: wer schon einen Code eintippt,
     // kennt die Adresse ohnehin. Was er nicht erfahren soll, ist WARUM es
     // nicht klappt - das hilft beim Durchraten von Codes.
     if (!nutzer) return json({ error: "Falscher oder abgelaufener Code" }, 401);
+    // fokus_zugang kann zwischen Codeversand und Einloesen entzogen worden
+    // sein (selten, aber die Pruefung ist billig) - lieber hier noch einmal
+    // ehrlich absagen als eine Sitzung fuer ein gesperrtes Konto anzulegen.
+    if (!nutzer.fokus_zugang) {
+      return json({ error: "Diese Adresse ist für den Fokus-Tracker nicht freigeschaltet." }, 403);
+    }
 
     const eintrag = await env.DB.prepare(
       `SELECT id, code_hash, attempts FROM login_codes

@@ -136,9 +136,12 @@ function anmelden() {
   return new Promise(resolve => {
     const overlay = $("lock");
     const form = $("lockForm");
+    const name = $("lockName");
     const email = $("lockEmail");
     const code = $("lockCode");
     const msg = $("lockMsg");
+    const umschalt = $("lockSwitch");
+    const erfolg = $("lockErfolg");
     const knopf = form.querySelector("button[type=submit]");
     let schritt = "email";
     let adresse = "";
@@ -169,12 +172,38 @@ function anmelden() {
     const zeigeEmail = () => {
       schritt = "email";
       hoerAuf();
+      erfolg.hidden = true;
+      form.hidden = false;
       $("lockHint").textContent = "Mit deiner E-Mail-Adresse anmelden.";
+      name.hidden = true;
       email.hidden = false;
       code.hidden = true;
       knopf.textContent = "Anmeldelink anfordern";
+      umschalt.hidden = false;
+      umschalt.textContent = "Noch keinen Zugang? Eintragen";
+      setzeMeldung("");
       overlay.classList.remove("hidden");
       email.focus();
+    };
+
+    // Dritter Schritt: Warteliste. Kein eigener Bildschirm, sondern dieselbe
+    // Maske mit einem zusaetzlichen Namensfeld - wer hier landet, kam gerade
+    // von "kein Konto" und soll nicht erst woandershin navigieren muessen.
+    const zeigeWarteliste = () => {
+      schritt = "warteliste";
+      hoerAuf();
+      erfolg.hidden = true;
+      form.hidden = false;
+      $("lockHint").textContent =
+        "Trag dich ein — du bekommst eine Mail, sobald du freigeschaltet bist.";
+      name.hidden = false;
+      email.hidden = false;
+      code.hidden = true;
+      knopf.textContent = "Eintragen";
+      umschalt.hidden = false;
+      umschalt.textContent = "Zurück zur Anmeldung";
+      setzeMeldung("");
+      name.focus();
     };
 
     const zeigeCode = () => {
@@ -186,34 +215,79 @@ function anmelden() {
         `Mail an ${adresse} geschickt — kann eine halbe Minute dauern. ` +
         `Klick dort auf „Jetzt anmelden“, dann geht es hier von selbst weiter.`;
       warteAufLink();
+      name.hidden = true;
       email.hidden = true;
       code.hidden = false;
       code.value = "";
       knopf.textContent = "Anmelden";
+      // Auf dem Code-Schritt waere der Umschalter nur verwirrend - hier geht es
+      // nicht mehr um die Frage, ob man einen Zugang hat.
+      umschalt.hidden = true;
       setzeMeldung("");
       code.focus();
     };
+
+    umschalt.onclick = () => {
+      if (schritt === "warteliste") zeigeEmail();
+      else zeigeWarteliste();
+    };
+
+    $("lockErfolgZurueck").onclick = zeigeEmail;
 
     form.onsubmit = async (e) => {
       e.preventDefault();
       setzeMeldung("");
       knopf.disabled = true;
       const beschriftung = knopf.textContent;
-      knopf.textContent = "Moment …";
+      knopf.textContent = schritt === "code" ? "Prüfe …" : "Moment …";
       try {
         if (schritt === "email") {
           adresse = email.value.trim();
           if (!adresse) return;
-          const { ok, daten } = await api("/api/auth/request-code", {
+          const { ok, status, daten } = await api("/api/auth/request-code", {
             method: "POST",
             body: JSON.stringify({ email: adresse }),
           });
           if (!ok) {
-            setzeMeldung(daten.error || "Code konnte nicht verschickt werden.");
-            email.focus();
+            // Kein Konto: direkt in den Wartelisten-Modus wechseln, statt es
+            // als Sackgasse zu praesentieren. Die Adresse bleibt stehen, es
+            // fehlt nur noch der Name. Ein Konto ohne fokus_zugang (403)
+            // bleibt dagegen auf dem Login-Schritt - Eintragen wuerde daran
+            // nichts aendern, das entscheidet die Verwaltung.
+            if (status === 404) {
+              zeigeWarteliste();
+              setzeMeldung((daten.error || "") + " Trag dich ein, dann schalte ich dich frei.");
+            } else {
+              setzeMeldung(daten.error || "Code konnte nicht verschickt werden.");
+              email.focus();
+            }
             return;
           }
           zeigeCode();
+        } else if (schritt === "warteliste") {
+          const wunschName = name.value.trim();
+          const wunschEmail = email.value.trim();
+          if (!wunschName || !wunschEmail) {
+            setzeMeldung("Bitte Name und Adresse ausfüllen.");
+            return;
+          }
+          const { ok, daten } = await api("/api/waitlist", {
+            method: "POST",
+            body: JSON.stringify({ name: wunschName, email: wunschEmail }),
+          });
+          if (!ok) {
+            setzeMeldung(daten.error || "Eintragen hat nicht geklappt.");
+            return;
+          }
+          // Formular weg, Bestaetigung her - fuer den Abschluss eines
+          // Vorgangs reicht eine kleine gruene Zeile darunter nicht.
+          $("lockErfolgText").textContent =
+            daten.message ||
+            `Wir haben deine Anfrage für ${wunschEmail} bekommen. ` +
+            `Sobald du freigeschaltet bist, kommt eine Mail.`;
+          form.hidden = true;
+          erfolg.hidden = false;
+          name.value = "";
         } else {
           const eingabe = code.value.trim();
           if (!/^\d{6}$/.test(eingabe)) { setzeMeldung("Sechsstelligen Code eingeben."); return; }
@@ -233,7 +307,9 @@ function anmelden() {
         }
       } finally {
         knopf.disabled = false;
-        if (knopf.textContent === "Moment …") knopf.textContent = beschriftung;
+        if (knopf.textContent === "Moment …" || knopf.textContent === "Prüfe …") {
+          knopf.textContent = beschriftung;
+        }
       }
     };
 

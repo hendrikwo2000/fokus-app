@@ -7,28 +7,25 @@
  * Angebot fuer alle ToDo-Nutzer. Sonst gaebe jede Wartelisten-Freischaltung
  * drueben stillschweigend auch hier Zugang.
  *
- * Erlaubte Adressen stehen in der Umgebungsvariable FOKUS_ZUGANG, kommagetrennt:
+ * Erlaubt ist, wer in der GETEILTEN users-Tabelle mit fokus_zugang=1 steht.
+ * Frueher eine Umgebungsvariable (FOKUS_ZUGANG) auf diesem Pages-Projekt -
+ * jetzt eine Spalte in der Datenbank, damit sich der Zugang aus demselben
+ * Dashboard vergeben laesst wie der ToDo-Zugang (todo.it-wolf.org/admin).
  *
- *     FOKUS_ZUGANG = deine@adresse.example
- *
- * Adressen statt Nutzer-IDs, weil man sie im Cloudflare-Dashboard aendern kann,
- * ohne vorher in der Datenbank nachzusehen, welche ID zu wem gehoert.
- *
- * Fehlt die Variable, kommt NIEMAND rein. Lieber ausgesperrt als offen: ein
- * vergessener Eintrag faellt beim ersten Anmeldeversuch auf, eine offene App
- * faellt gar nicht auf.
+ * Fehlt ein Konto oder ist fokus_zugang 0, kommt niemand rein. Lieber
+ * ausgesperrt als offen.
  */
 
 import { angemeldeterNutzer } from "./session.js";
 import { json } from "./antwort.js";
 
-export function darfRein(env, email) {
-  const liste = String(env.FOKUS_ZUGANG || "")
-    .split(",")
-    .map(a => a.trim().toLowerCase())
-    .filter(Boolean);
-  if (!liste.length) return false;
-  return liste.includes(String(email || "").trim().toLowerCase());
+export async function darfRein(env, email) {
+  const adresse = String(email || "").trim().toLowerCase();
+  if (!adresse) return false;
+  const zeile = await env.DB.prepare(
+    "SELECT fokus_zugang FROM users WHERE email = ?"
+  ).bind(adresse).first();
+  return !!(zeile && zeile.fokus_zugang);
 }
 
 /**
@@ -41,9 +38,10 @@ export function darfRein(env, email) {
 export async function nutzerOderFehler(request, env) {
   if (!env.DB) return { fehler: json({ error: "D1-Bindung DB fehlt im Pages-Projekt" }, 500) };
 
-  let nutzer;
+  let nutzer, erlaubt;
   try {
     nutzer = await angemeldeterNutzer(request, env);
+    if (nutzer) erlaubt = await darfRein(env, nutzer.email);
   } catch (e) {
     return { fehler: json({ error: "Datenbankfehler" }, 500) };
   }
@@ -51,7 +49,7 @@ export async function nutzerOderFehler(request, env) {
 
   // 403, nicht 401: angemeldet ist die Person ja. Ein 401 wuerde die App in die
   // Anmeldemaske schicken, wo sie sich endlos im Kreis anmelden koennte.
-  if (!darfRein(env, nutzer.email)) {
+  if (!erlaubt) {
     return { fehler: json({ error: "Dieses Konto ist für den Fokus-Tracker nicht freigeschaltet." }, 403) };
   }
   return { nutzer, nutzerId: nutzer.id };

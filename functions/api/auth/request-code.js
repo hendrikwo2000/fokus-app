@@ -2,19 +2,24 @@
  * Schritt 1 des Logins: Code per Mail verschicken.
  *
  * Gespiegelt aus der ToDo-Liste, mit einem Unterschied: hier muss die Adresse
- * zusaetzlich in FOKUS_ZUGANG stehen. Die Pruefung sitzt VOR dem Versand, damit
- * an fremde Adressen gar keine Mail rausgeht - sonst koennte man dieses
- * Formular als Versandapparat fuer beliebige Postfaecher benutzen.
+ * zusaetzlich fokus_zugang=1 haben (eigene Berechtigung, unabhaengig vom
+ * ToDo-Konto - siehe schema.sql). Die Pruefung sitzt VOR dem Versand, damit an
+ * fremde oder nicht freigeschaltete Adressen gar keine Mail rausgeht.
  *
- * Kein Turnstile und keine Warteliste, anders als drueben. Beides haengt dort
- * an der oeffentlichen Registrierung; hier gibt es nichts zu registrieren, und
- * das Ein-Code-pro-Minute-Limit aus `login_codes` reicht als Bremse.
+ * Zwei verschiedene Absagen, bewusst unterschieden: 404 "kein Konto" (die
+ * Adresse taucht ueberhaupt nicht in users auf - das Frontend wechselt dann in
+ * den Wartelisten-Schritt, genau wie in der ToDo-Liste) gegen 403 "nicht
+ * freigeschaltet" (ein Konto existiert, hat aber kein fokus_zugang - dafuer
+ * hilft kein erneutes Eintragen, sondern nur die Freischaltung im Dashboard).
+ *
+ * Kein Turnstile hier, anders als bei der ToDo-Warteliste - dieselbe
+ * Abwaegung wie dort am Anfang: das Ein-Eintrag-pro-Minute-Limit reicht als
+ * erste Bremse, ein Widget kann bei Bedarf spaeter dazukommen.
  */
 
 import { hashHex, neuesToken } from "../../_lib/session.js";
 import { sendeMail, huelle, absatz, kasten, knopf, fussnote } from "../../_lib/mail.js";
 import { json, liesJson } from "../../_lib/antwort.js";
-import { darfRein } from "../../_lib/zugang.js";
 
 const GUELTIG_MINUTEN = 10;
 
@@ -61,27 +66,14 @@ export async function onRequestPost({ request, env }) {
     return json({ error: "Das sieht nicht nach einer E-Mail-Adresse aus." }, 400);
   }
 
-  // Erst die Erlaubnisliste, dann erst die Datenbank. Ein ToDo-Konto allein
-  // reicht hier nicht.
-  if (!darfRein(env, email)) {
-    return json({ error: "Diese Adresse ist für den Fokus-Tracker nicht freigeschaltet." }, 403);
-  }
-
-  // Erst NACH der Zugangspruefung: eine gesperrte Adresse soll ihre Absage auch
-  // dann bekommen, wenn der Mailversand gar nicht eingerichtet ist. Andersherum
-  // antwortet lokal (ohne RESEND_KEY) jede Adresse mit 500, und der Zugangsweg
-  // liesse sich nicht testen.
-  if (!env.RESEND_KEY) return json({ error: "RESEND_KEY fehlt im Pages-Projekt" }, 500);
-
   let nutzer, kuerzlich;
   try {
-    // Das Konto liegt in der geteilten users-Tabelle der ToDo-Liste. Steht die
-    // Adresse in FOKUS_ZUGANG, hat dort aber kein Konto, ist das ein
-    // Konfigurationsfehler - und die Meldung sagt das auch so, statt es als
-    // Anmeldeproblem zu tarnen.
-    nutzer = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email).first();
+    nutzer = await env.DB.prepare("SELECT id, fokus_zugang FROM users WHERE email = ?").bind(email).first();
     if (!nutzer) {
       return json({ error: "Für diese Adresse gibt es noch kein Konto." }, 404);
+    }
+    if (!nutzer.fokus_zugang) {
+      return json({ error: "Diese Adresse ist für den Fokus-Tracker nicht freigeschaltet." }, 403);
     }
     // Mindestabstand zwischen zwei Anforderungen fuer dieselbe Adresse -
     // verhindert, dass ein Postfach mit Code-Mails geflutet wird. Die Tabelle
@@ -92,6 +84,12 @@ export async function onRequestPost({ request, env }) {
   } catch (e) {
     return json({ error: "Datenbankfehler" }, 500);
   }
+
+  // Erst NACH der Zugangspruefung: eine gesperrte oder unbekannte Adresse soll
+  // ihre Absage auch dann bekommen, wenn der Mailversand gar nicht eingerichtet
+  // ist. Andersherum antwortet lokal (ohne RESEND_KEY) jede Adresse mit 500,
+  // und der Zugangsweg liesse sich nicht testen.
+  if (!env.RESEND_KEY) return json({ error: "RESEND_KEY fehlt im Pages-Projekt" }, 500);
 
   if (kuerzlich.n > 0) {
     return json({ error: "Bitte kurz warten, bevor du einen neuen Code anforderst." }, 429);

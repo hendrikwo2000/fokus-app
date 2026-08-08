@@ -85,12 +85,26 @@
     <div class="lock-icon">🔒</div>
     <h2>Fokus</h2>
     <p class="lock-hint" id="lockHint">Mit deiner E-Mail-Adresse anmelden.</p>
+    <input type="text" id="lockName" placeholder="Dein Name" autocomplete="name" hidden>
     <input type="email" id="lockEmail" placeholder="E-Mail-Adresse" autocomplete="email">
     <input type="text" id="lockCode" placeholder="6-stelliger Code" inputmode="numeric"
            pattern="[0-9]*" autocomplete="one-time-code" hidden>
     <button type="submit">Anmeldelink anfordern</button>
     <div id="lockMsg" class="lock-msg" aria-live="polite"></div>
+    <button type="button" id="lockSwitch" class="lock-link">Noch keinen Zugang? Eintragen</button>
   </form>
+
+  <!-- Bestaetigung nach dem Eintragen in die Warteliste. Bewusst ein eigener
+       Kasten statt einer kleinen gruenen Zeile unter dem Formular: das
+       Eintragen ist fuer den Besucher der Abschluss des Vorgangs, und ein
+       stehengebliebenes Formular saehe aus, als waere nichts passiert. -->
+  <div id="lockErfolg" class="lock-box" hidden>
+    <div class="lock-icon">✓</div>
+    <h2>Du stehst auf der Liste</h2>
+    <p class="lock-hint" id="lockErfolgText"></p>
+    <button type="button" id="lockErfolgZurueck" class="lock-link">Zurück zur Anmeldung</button>
+  </div>
+
   <!-- Angemeldet, aber nicht freigeschaltet. Eigener Kasten statt einer Zeile
        in der Maske: hier hilft kein zweiter Anmeldeversuch. -->
   <div id="lockGesperrt" class="lock-box" hidden>
