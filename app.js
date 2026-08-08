@@ -1092,10 +1092,10 @@ $("frageNein").onclick = () => { $("fragePopup").hidden = true; frageAntwort?.(f
 // Akkordeon wie in der ToDo-Liste: je Oeffnen klappen die anderen Abschnitte
 // zu - einmalige Verdrahtung auf das native "toggle"-Event reicht, da die
 // <details> nie neu gerendert werden.
-document.querySelectorAll("#einPopup .ein-abschnitt").forEach(det => {
+document.querySelectorAll("#einPopup details.ein-abschnitt").forEach(det => {
   det.addEventListener("toggle", () => {
     if (det.open) {
-      document.querySelectorAll("#einPopup .ein-abschnitt").forEach(other => {
+      document.querySelectorAll("#einPopup details.ein-abschnitt").forEach(other => {
         if (other !== det) other.open = false;
       });
     }
@@ -1105,27 +1105,28 @@ document.querySelectorAll("#einPopup .ein-abschnitt").forEach(det => {
 // Bei jedem Oeffnen auf denselben Abschnitt zurueck - "Fokus-Timer" ist der
 // haeufigste Grund fuers Zahnrad (Dauer anpassen), der Rest faengt zu.
 function resetAkkordeon() {
-  document.querySelectorAll("#einPopup .ein-abschnitt").forEach(det => {
+  document.querySelectorAll("#einPopup details.ein-abschnitt").forEach(det => {
     det.open = det.dataset.abschnitt === "timer";
   });
 }
 
+// ToDo-Liste-Zeile: Status-Text und "aktiv"-Farbe. Eigene Funktion statt Teil
+// von aktualisiereEinSubtexte(), weil sie auch direkt nach dem Freischalten
+// (ohne die anderen Subtexte) aufgerufen wird.
+function aktualisiereTodoLink() {
+  $("subTodo").textContent = state.todoZugang ? "aktiv" : "nicht aktiv";
+  $("todoLink").classList.toggle("aktiv", state.todoZugang);
+}
+
 // Kurztext in jeder Kopfzeile, auch zugeklappt sichtbar.
 function aktualisiereEinSubtexte() {
-  const dunkel = (document.documentElement.getAttribute("data-theme") || "light") === "dark";
-  $("subDarstellung").textContent = dunkel ? "Dunkel" : "Hell";
   $("subTimer").textContent = `${fokus.arbeitMin} Min`;
   $("subKonto").textContent = state.email;
 
   const archiviert = state.gewohnheiten.filter(g => g.archiviert).length;
   $("subArchiv").textContent = archiviert ? `${archiviert} archiviert` : "";
 
-  $("subTodo").textContent = state.todoZugang ? "aktiv" : "";
-
-  if (!("Notification" in window)) $("subErinnerung").textContent = "";
-  else if (Notification.permission === "granted") $("subErinnerung").textContent = "erlaubt";
-  else if (Notification.permission === "denied") $("subErinnerung").textContent = "blockiert";
-  else $("subErinnerung").textContent = "aus";
+  aktualisiereTodoLink();
 }
 
 function renderArchiv() {
@@ -1184,25 +1185,26 @@ function renderArchiv() {
   aktualisiereEinSubtexte();
 }
 
+// Kein Akkordeon mehr - Status steckt nur noch im Kurztext neben dem Knopf
+// (bzw. statt des Knopfs, sobald erlaubt/blockiert/nicht unterstuetzt).
 function renderBenachrichtigung() {
   const knopf = $("einBenachrichtigung");
-  const text = $("einBenachrichtigungText");
+  const sub = $("subErinnerung");
   if (!("Notification" in window)) {
     knopf.hidden = true;
-    text.textContent = "Dein Browser kennt keine Benachrichtigungen. Ton und Tab-Titel melden sich trotzdem.";
+    sub.textContent = "nicht unterstützt";
     return;
   }
   if (Notification.permission === "granted") {
     knopf.hidden = true;
-    text.textContent = "Erlaubt — du bekommst am Ende jeder Sitzung eine Benachrichtigung.";
+    sub.textContent = "erlaubt";
   } else if (Notification.permission === "denied") {
     knopf.hidden = true;
-    text.textContent = "Blockiert. Das lässt sich nur in den Browser-Einstellungen ändern; Ton und Tab-Titel melden sich weiterhin.";
+    sub.textContent = "blockiert";
   } else {
     knopf.hidden = false;
-    text.textContent = "Ohne Erlaubnis meldet sich nur der Ton und der Tab-Titel.";
+    sub.textContent = "";
   }
-  aktualisiereEinSubtexte();
 }
 
 $("einBenachrichtigung").onclick = async () => {
@@ -1210,27 +1212,18 @@ $("einBenachrichtigung").onclick = async () => {
   renderBenachrichtigung();
 };
 
-// Knopf nur zeigen, solange der Zugang noch fehlt - wer ihn schon hat,
-// bekommt nur den Hinweistext (das Aufgeben passiert drueben in ToDo's
-// eigenen Einstellungen, nicht hier).
-function renderToDoAbschnitt() {
-  $("todoHolen").hidden = !!state.todoZugang;
-  $("todoHinweis").textContent = state.todoZugang
-    ? "Du hast auch Zugang zur ToDo-Liste."
-    : "Listen, Bereiche und ToDos, mit derselben Anmeldung.";
-  aktualisiereEinSubtexte();
-}
-
-$("todoHolen").onclick = async () => {
-  const btn = $("todoHolen");
-  btn.disabled = true;
+// Vor der Freischaltung: Klick holt den Zugang (wie frueher der Knopf), der
+// Link fuehrt noch nirgends hin. Danach ist es ein ganz normaler Link zur
+// anderen App - der Browser uebernimmt, kein weiterer Klick-Handler noetig.
+$("todoLink").addEventListener("click", async e => {
+  if (state.todoZugang) return;
+  e.preventDefault();
   const antwort = await api("/api/auth/todo-zugang", { method: "POST" });
-  btn.disabled = false;
   if (!antwort.ok) { melde(antwort.daten.error || "Hat nicht geklappt."); return; }
   state.todoZugang = true;
-  renderToDoAbschnitt();
+  aktualisiereTodoLink();
   melde("Zugang zur ToDo-Liste freigeschaltet.");
-};
+});
 
 $("fokusZugangAufgeben").onclick = async () => {
   const ok = await frage("Fokus-Zugang aufgeben?",
@@ -1243,13 +1236,18 @@ $("fokusZugangAufgeben").onclick = async () => {
   zeigeGesperrt("Du hast deinen Fokus-Zugang aufgegeben.");
 };
 
+function aktualisiereDauerAnzeige() {
+  $("einDauerWert").textContent = `${$("einDauer").value} Min`;
+}
+$("einDauer").oninput = aktualisiereDauerAnzeige;
+
 $("einstellungenBtn").onclick = () => {
   $("einDauer").value = String(fokus.arbeitMin);
+  aktualisiereDauerAnzeige();
   $("einKontoName").textContent = state.name || "Konto";
   $("einKontoMail").textContent = state.email;
   renderArchiv();
   renderBenachrichtigung();
-  renderToDoAbschnitt();
   aktualisiereEinSubtexte();
   resetAkkordeon();
   $("einPopup").hidden = false;
@@ -1309,14 +1307,14 @@ for (const knopf of $("reiter").querySelectorAll("button")) {
 // der Systemeinstellung.
 function setzeThema(thema) {
   document.documentElement.setAttribute("data-theme", thema);
-  $("themaBtn").textContent = thema === "dark" ? "☀ Helles Design" : "☾ Dunkles Design";
+  $("themaSwitch").checked = thema === "dark";
+  $("themaSwitchLabel").textContent = thema === "dark" ? "Dunkel" : "Hell";
   localStorage.setItem("thema", thema);
-  aktualisiereEinSubtexte();
 }
 setzeThema(localStorage.getItem("thema")
   || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
-$("themaBtn").onclick = () => {
-  setzeThema(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+$("themaSwitch").onchange = () => {
+  setzeThema($("themaSwitch").checked ? "dark" : "light");
 };
 
 // Klick auf den Overlay-Hintergrund (nicht auf die Box selbst) schliesst den

@@ -205,21 +205,23 @@
     <div class="popup-icon">⚙️</div>
     <h2>Einstellungen</h2>
 
-    <!-- Akkordeon wie in der ToDo-Liste: <details>/<summary> je Abschnitt,
-         JS (resetAkkordeon/aktualisiereEinSubtexte) sorgt dafuer, dass beim
-         Aufklappen eines Abschnitts die anderen zuklappen und dass der
-         Kurztext je Kopfzeile auch zugeklappt sichtbar bleibt. -->
-    <details class="ein-abschnitt" data-abschnitt="darstellung">
-      <summary class="ein-kopf">
-        <span class="ein-kopf-icon">🎨</span>
-        <span class="ein-kopf-text">Darstellung</span>
-        <span class="ein-kopf-sub" id="subDarstellung"></span>
-        <span class="ein-kopf-pfeil">▾</span>
-      </summary>
-      <div class="ein-inhalt">
-        <button type="button" class="btn" id="themaBtn">☾ Dunkles Design</button>
-      </div>
-    </details>
+    <!-- Akkordeon wie in der ToDo-Liste fuer die meisten Abschnitte:
+         <details>/<summary> je Abschnitt, JS (resetAkkordeon/
+         aktualisiereEinSubtexte) sorgt dafuer, dass beim Aufklappen eines
+         Abschnitts die anderen zuklappen und dass der Kurztext je Kopfzeile
+         auch zugeklappt sichtbar bleibt. "Darstellung" (Toggle-Switch) und
+         "ToDo-Liste" (Link) sind bewusst keine Akkordeons, sondern einzeilig,
+         weil sie nur einen einzigen Zustand zeigen statt mehrerer
+         Unter-Elemente. -->
+    <div class="ein-abschnitt ein-zeile ein-abschnitt-erste" data-abschnitt="darstellung">
+      <span class="ein-kopf-icon">🎨</span>
+      <span class="ein-kopf-text">Darstellung</span>
+      <label class="switch" id="themaSwitchWrap">
+        <input type="checkbox" id="themaSwitch">
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+        <span class="switch-label" id="themaSwitchLabel">Hell</span>
+      </label>
+    </div>
 
     <details class="ein-abschnitt" data-abschnitt="timer">
       <summary class="ein-kopf">
@@ -230,26 +232,23 @@
       </summary>
       <div class="ein-inhalt">
         <div class="popup-feld">
-          <label for="einDauer">Standarddauer in Minuten</label>
-          <input type="number" id="einDauer" min="1" max="180" step="1">
+          <label for="einDauer">Standarddauer</label>
+          <div class="ein-slider-zeile">
+            <input type="range" id="einDauer" min="5" max="180" step="5">
+            <span class="ein-slider-wert" id="einDauerWert">60 Min</span>
+            <button class="btn klein" id="einDauerSpeichern">Speichern</button>
+          </div>
         </div>
         <p class="hinweis">Gilt ab der nächsten Sitzung.</p>
-        <button class="btn" id="einDauerSpeichern">Dauer speichern</button>
       </div>
     </details>
 
-    <details class="ein-abschnitt" data-abschnitt="erinnerung">
-      <summary class="ein-kopf">
-        <span class="ein-kopf-icon">🔔</span>
-        <span class="ein-kopf-text">Erinnerung am Sitzungsende</span>
-        <span class="ein-kopf-sub" id="subErinnerung"></span>
-        <span class="ein-kopf-pfeil">▾</span>
-      </summary>
-      <div class="ein-inhalt">
-        <p class="hinweis" id="einBenachrichtigungText"></p>
-        <button class="btn" id="einBenachrichtigung">Benachrichtigungen erlauben</button>
-      </div>
-    </details>
+    <div class="ein-abschnitt ein-zeile" data-abschnitt="erinnerung">
+      <span class="ein-kopf-icon">🔔</span>
+      <span class="ein-kopf-text">Erinnerung am Sitzungsende</span>
+      <span class="ein-kopf-sub" id="subErinnerung"></span>
+      <button type="button" class="btn klein" id="einBenachrichtigung">Erlauben</button>
+    </div>
 
     <details class="ein-abschnitt" id="archivAbschnitt" data-abschnitt="archiv">
       <summary class="ein-kopf">
@@ -268,18 +267,12 @@
          Fokus-Konto (siehe schema.sql). "Holen" braucht keine Rueckfrage -
          rein additiv, jederzeit in ToDo's eigenen Einstellungen wieder
          aufgebbar. -->
-    <details class="ein-abschnitt" data-abschnitt="todo">
-      <summary class="ein-kopf">
-        <span class="ein-kopf-icon">📋</span>
-        <span class="ein-kopf-text">ToDo-Liste</span>
-        <span class="ein-kopf-sub" id="subTodo"></span>
-        <span class="ein-kopf-pfeil">▾</span>
-      </summary>
-      <div class="ein-inhalt">
-        <p class="hinweis" id="todoHinweis"></p>
-        <button class="btn" id="todoHolen">Zugang zur ToDo-Liste holen</button>
-      </div>
-    </details>
+    <a href="https://todo.it-wolf.org" target="_blank" rel="noopener"
+       id="todoLink" class="ein-abschnitt ein-zeile ein-link" data-abschnitt="todo">
+      <span class="ein-kopf-icon">📋</span>
+      <span class="ein-kopf-text">ToDo-Liste</span>
+      <span class="ein-kopf-sub" id="subTodo">nicht aktiv</span>
+    </a>
 
     <details class="ein-abschnitt" data-abschnitt="konto">
       <summary class="ein-kopf">
