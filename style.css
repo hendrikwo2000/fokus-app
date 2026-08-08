@@ -496,18 +496,69 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 }
 .archiv-zeile > span { flex: 1; font-size: 14px; overflow-wrap: anywhere; }
 
-.abschnitt {
-  display: flex; flex-direction: column; gap: 10px;
-  padding-top: 16px; margin-top: 4px;
-  border-top: 1px solid var(--line);
-  text-align: left;
-}
-.abschnitt[hidden] { display: none; }
-.abschnitt h3 {
-  margin: 0; font-size: 12px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
-}
 .hinweis { font-size: 12px; color: var(--muted); margin: 0; }
+
+/* ---------- Einstellungen (Akkordeon, aus der ToDo-Liste uebernommen) ---------- */
+/* Breiter als die schmalen Dialoge, linksbuendig - nur Icon und Ueberschrift
+   bleiben mittig wie in den anderen Popups. */
+.popup-box.einstellungen { width: min(440px, 100%); text-align: left; gap: 4px; }
+.popup-box.einstellungen > .popup-icon { text-align: center; }
+.popup-box.einstellungen h2 { text-align: center; }
+
+/* Jeder Abschnitt ein <details> - zu wieviel auf einmal offenstand, war in
+   der ToDo-Liste genau die Klage ("alles steht offen"), hier von Anfang an
+   vermieden. Der toggle-Listener in app.js (resetAkkordeon) sorgt dafuer,
+   dass beim Aufklappen eines Abschnitts die anderen zuklappen. */
+.ein-abschnitt {
+  display: flex; flex-direction: column;
+  padding-top: 6px; margin-top: 2px;
+  border-top: 1px solid var(--line);
+}
+/* Ohne dieses [hidden] gewinnt "display: flex" oben gegen das hidden-Attribut
+   (Fokus/ToDo-hidden-Falle: jede eigene display-Regel schlaegt das
+   eingebaute [hidden] des Browsers). */
+.ein-abschnitt[hidden] { display: none; }
+.popup-box.einstellungen > .ein-abschnitt:first-of-type { border-top: 0; padding-top: 0; }
+
+.ein-kopf {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 2px;
+  cursor: pointer;
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.ein-kopf::-webkit-details-marker { display: none; }
+.ein-kopf:hover .ein-kopf-text { color: var(--accent); }
+.ein-kopf-icon { flex: none; font-size: 15px; line-height: 1; }
+.ein-kopf-text { font-size: 14px; font-weight: 600; color: var(--text); transition: color .12s; }
+.ein-kopf-sub {
+  margin-left: auto;
+  font-size: 12px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%;
+}
+.ein-kopf-pfeil { flex: none; font-size: 11px; color: var(--muted); transition: transform .15s; }
+.ein-abschnitt[open] > .ein-kopf .ein-kopf-pfeil { transform: rotate(180deg); }
+
+.ein-inhalt { display: flex; flex-direction: column; gap: 8px; padding: 2px 2px 14px; }
+/* Gleiche Falle wie oben: .popup-box .btn setzt display:inline-flex, ohne
+   diese Zeile blieben die Knoepfe trotz hidden-Attribut sichtbar. */
+#todoHolen[hidden], #einBenachrichtigung[hidden] { display: none; }
+
+/* ".popup-box p" (Typ+Klasse) waere sonst spezifischer als eine reine
+   Klassen-Regel und wuerde Groesse/Farbe hier ueberstimmen. */
+.popup-box p.ein-konto-name { font-size: 15px; font-weight: 600; color: var(--text); margin: 0; }
+.popup-box p.ein-konto-mail { font-size: 12.5px; color: var(--muted); margin: 0; word-break: break-all; }
+.ein-gefahrenzone {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 4px; padding: 10px;
+  border: 1px solid var(--del-soft); border-radius: 10px;
+  background: var(--del-soft);
+}
+.ein-gefahren-label {
+  margin: 0; font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em; color: var(--red);
+}
+#einSchliessen { align-self: center; margin-top: 4px; }
 
 /* ---------- Kurzmeldung unten ---------- */
 .snackbar {

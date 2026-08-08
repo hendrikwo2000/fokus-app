@@ -1089,6 +1089,45 @@ $("frageNein").onclick = () => { $("fragePopup").hidden = true; frageAntwort?.(f
 
 /* -------------------------------------------------------- Einstellungen */
 
+// Akkordeon wie in der ToDo-Liste: je Oeffnen klappen die anderen Abschnitte
+// zu - einmalige Verdrahtung auf das native "toggle"-Event reicht, da die
+// <details> nie neu gerendert werden.
+document.querySelectorAll("#einPopup .ein-abschnitt").forEach(det => {
+  det.addEventListener("toggle", () => {
+    if (det.open) {
+      document.querySelectorAll("#einPopup .ein-abschnitt").forEach(other => {
+        if (other !== det) other.open = false;
+      });
+    }
+  });
+});
+
+// Bei jedem Oeffnen auf denselben Abschnitt zurueck - "Fokus-Timer" ist der
+// haeufigste Grund fuers Zahnrad (Dauer anpassen), der Rest faengt zu.
+function resetAkkordeon() {
+  document.querySelectorAll("#einPopup .ein-abschnitt").forEach(det => {
+    det.open = det.dataset.abschnitt === "timer";
+  });
+}
+
+// Kurztext in jeder Kopfzeile, auch zugeklappt sichtbar.
+function aktualisiereEinSubtexte() {
+  const dunkel = (document.documentElement.getAttribute("data-theme") || "light") === "dark";
+  $("subDarstellung").textContent = dunkel ? "Dunkel" : "Hell";
+  $("subTimer").textContent = `${fokus.arbeitMin} Min`;
+  $("subKonto").textContent = state.email;
+
+  const archiviert = state.gewohnheiten.filter(g => g.archiviert).length;
+  $("subArchiv").textContent = archiviert ? `${archiviert} archiviert` : "";
+
+  $("subTodo").textContent = state.todoZugang ? "aktiv" : "";
+
+  if (!("Notification" in window)) $("subErinnerung").textContent = "";
+  else if (Notification.permission === "granted") $("subErinnerung").textContent = "erlaubt";
+  else if (Notification.permission === "denied") $("subErinnerung").textContent = "blockiert";
+  else $("subErinnerung").textContent = "aus";
+}
+
 function renderArchiv() {
   const liste = $("archivListe");
   liste.replaceChildren();
@@ -1142,6 +1181,7 @@ function renderArchiv() {
 
     liste.appendChild(zeile);
   }
+  aktualisiereEinSubtexte();
 }
 
 function renderBenachrichtigung() {
@@ -1162,6 +1202,7 @@ function renderBenachrichtigung() {
     knopf.hidden = false;
     text.textContent = "Ohne Erlaubnis meldet sich nur der Ton und der Tab-Titel.";
   }
+  aktualisiereEinSubtexte();
 }
 
 $("einBenachrichtigung").onclick = async () => {
@@ -1177,6 +1218,7 @@ function renderToDoAbschnitt() {
   $("todoHinweis").textContent = state.todoZugang
     ? "Du hast auch Zugang zur ToDo-Liste."
     : "Listen, Bereiche und ToDos, mit derselben Anmeldung.";
+  aktualisiereEinSubtexte();
 }
 
 $("todoHolen").onclick = async () => {
@@ -1203,10 +1245,13 @@ $("fokusZugangAufgeben").onclick = async () => {
 
 $("einstellungenBtn").onclick = () => {
   $("einDauer").value = String(fokus.arbeitMin);
-  $("einKonto").textContent = `Angemeldet als ${state.email}`;
+  $("einKontoName").textContent = state.name || "Konto";
+  $("einKontoMail").textContent = state.email;
   renderArchiv();
   renderBenachrichtigung();
   renderToDoAbschnitt();
+  aktualisiereEinSubtexte();
+  resetAkkordeon();
   $("einPopup").hidden = false;
 };
 $("einSchliessen").onclick = () => { $("einPopup").hidden = true; };
@@ -1220,6 +1265,7 @@ $("einDauerSpeichern").onclick = async () => {
   if (!antwort.ok) { melde(antwort.daten.error || "Speichern fehlgeschlagen"); return; }
   fokus.arbeitMin = antwort.daten.arbeitMin;
   renderFokus();
+  aktualisiereEinSubtexte();
   melde(`Standarddauer: ${fokus.arbeitMin} Minuten`);
 };
 
@@ -1265,6 +1311,7 @@ function setzeThema(thema) {
   document.documentElement.setAttribute("data-theme", thema);
   $("themaBtn").textContent = thema === "dark" ? "☀ Helles Design" : "☾ Dunkles Design";
   localStorage.setItem("thema", thema);
+  aktualisiereEinSubtexte();
 }
 setzeThema(localStorage.getItem("thema")
   || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));

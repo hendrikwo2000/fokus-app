@@ -201,54 +201,106 @@
 </div>
 
 <div class="popup" id="einPopup" hidden>
-  <div class="popup-box">
+  <div class="popup-box einstellungen">
     <div class="popup-icon">⚙️</div>
     <h2>Einstellungen</h2>
 
-    <div class="abschnitt">
-      <h3>Darstellung</h3>
-      <button type="button" class="btn" id="themaBtn">☾ Dunkles Design</button>
-    </div>
-
-    <div class="abschnitt">
-      <h3>Fokus-Timer</h3>
-      <div class="popup-feld">
-        <label for="einDauer">Standarddauer in Minuten</label>
-        <input type="number" id="einDauer" min="1" max="180" step="1">
+    <!-- Akkordeon wie in der ToDo-Liste: <details>/<summary> je Abschnitt,
+         JS (resetAkkordeon/aktualisiereEinSubtexte) sorgt dafuer, dass beim
+         Aufklappen eines Abschnitts die anderen zuklappen und dass der
+         Kurztext je Kopfzeile auch zugeklappt sichtbar bleibt. -->
+    <details class="ein-abschnitt" data-abschnitt="darstellung">
+      <summary class="ein-kopf">
+        <span class="ein-kopf-icon">🎨</span>
+        <span class="ein-kopf-text">Darstellung</span>
+        <span class="ein-kopf-sub" id="subDarstellung"></span>
+        <span class="ein-kopf-pfeil">▾</span>
+      </summary>
+      <div class="ein-inhalt">
+        <button type="button" class="btn" id="themaBtn">☾ Dunkles Design</button>
       </div>
-      <p class="hinweis">Gilt ab der nächsten Sitzung.</p>
-      <button class="btn" id="einDauerSpeichern">Dauer speichern</button>
-    </div>
+    </details>
 
-    <div class="abschnitt">
-      <h3>Erinnerung am Sitzungsende</h3>
-      <p class="hinweis" id="einBenachrichtigungText"></p>
-      <button class="btn" id="einBenachrichtigung">Benachrichtigungen erlauben</button>
-    </div>
+    <details class="ein-abschnitt" data-abschnitt="timer">
+      <summary class="ein-kopf">
+        <span class="ein-kopf-icon">⏱️</span>
+        <span class="ein-kopf-text">Fokus-Timer</span>
+        <span class="ein-kopf-sub" id="subTimer"></span>
+        <span class="ein-kopf-pfeil">▾</span>
+      </summary>
+      <div class="ein-inhalt">
+        <div class="popup-feld">
+          <label for="einDauer">Standarddauer in Minuten</label>
+          <input type="number" id="einDauer" min="1" max="180" step="1">
+        </div>
+        <p class="hinweis">Gilt ab der nächsten Sitzung.</p>
+        <button class="btn" id="einDauerSpeichern">Dauer speichern</button>
+      </div>
+    </details>
 
-    <div class="abschnitt" id="archivAbschnitt">
-      <h3>Archiv</h3>
-      <div id="archivListe"></div>
-      <p class="hinweis" id="archivLeer">Noch nichts archiviert.</p>
-    </div>
+    <details class="ein-abschnitt" data-abschnitt="erinnerung">
+      <summary class="ein-kopf">
+        <span class="ein-kopf-icon">🔔</span>
+        <span class="ein-kopf-text">Erinnerung am Sitzungsende</span>
+        <span class="ein-kopf-sub" id="subErinnerung"></span>
+        <span class="ein-kopf-pfeil">▾</span>
+      </summary>
+      <div class="ein-inhalt">
+        <p class="hinweis" id="einBenachrichtigungText"></p>
+        <button class="btn" id="einBenachrichtigung">Benachrichtigungen erlauben</button>
+      </div>
+    </details>
+
+    <details class="ein-abschnitt" id="archivAbschnitt" data-abschnitt="archiv">
+      <summary class="ein-kopf">
+        <span class="ein-kopf-icon">🗄️</span>
+        <span class="ein-kopf-text">Archiv</span>
+        <span class="ein-kopf-sub" id="subArchiv"></span>
+        <span class="ein-kopf-pfeil">▾</span>
+      </summary>
+      <div class="ein-inhalt">
+        <div id="archivListe"></div>
+        <p class="hinweis" id="archivLeer">Noch nichts archiviert.</p>
+      </div>
+    </details>
 
     <!-- ToDo-Zugang ist eine eigene Berechtigung, unabhaengig vom
          Fokus-Konto (siehe schema.sql). "Holen" braucht keine Rueckfrage -
          rein additiv, jederzeit in ToDo's eigenen Einstellungen wieder
          aufgebbar. -->
-    <div class="abschnitt">
-      <h3>ToDo-Liste</h3>
-      <p class="hinweis" id="todoHinweis"></p>
-      <button class="btn" id="todoHolen">Zugang zur ToDo-Liste holen</button>
-    </div>
+    <details class="ein-abschnitt" data-abschnitt="todo">
+      <summary class="ein-kopf">
+        <span class="ein-kopf-icon">📋</span>
+        <span class="ein-kopf-text">ToDo-Liste</span>
+        <span class="ein-kopf-sub" id="subTodo"></span>
+        <span class="ein-kopf-pfeil">▾</span>
+      </summary>
+      <div class="ein-inhalt">
+        <p class="hinweis" id="todoHinweis"></p>
+        <button class="btn" id="todoHolen">Zugang zur ToDo-Liste holen</button>
+      </div>
+    </details>
 
-    <div class="abschnitt">
-      <h3>Konto</h3>
-      <p class="hinweis" id="einKonto"></p>
-      <p class="hinweis">Abmelden meldet dich auch aus der ToDo-Liste ab — es ist dieselbe Sitzung.</p>
-      <button class="btn gefahr" id="einAbmelden">Abmelden</button>
-      <button class="btn gefahr" id="fokusZugangAufgeben">Fokus-Zugang aufgeben</button>
-    </div>
+    <details class="ein-abschnitt" data-abschnitt="konto">
+      <summary class="ein-kopf">
+        <span class="ein-kopf-icon">👤</span>
+        <span class="ein-kopf-text">Konto</span>
+        <span class="ein-kopf-sub" id="subKonto"></span>
+        <span class="ein-kopf-pfeil">▾</span>
+      </summary>
+      <div class="ein-inhalt">
+        <p class="ein-konto-name" id="einKontoName">Konto</p>
+        <p class="ein-konto-mail" id="einKontoMail"></p>
+        <p class="hinweis">Abmelden meldet dich auch aus der ToDo-Liste ab — es ist dieselbe Sitzung.</p>
+        <button type="button" class="btn" id="einAbmelden">Abmelden</button>
+        <!-- Getrennt von Abmelden: nur das hier ist unwiderruflich, eine
+             eigene Box mit --del-soft hebt das ab (wie in der ToDo-Liste). -->
+        <div class="ein-gefahrenzone">
+          <p class="ein-gefahren-label">Unwiderruflich</p>
+          <button type="button" class="btn gefahr" id="fokusZugangAufgeben">Fokus-Zugang aufgeben</button>
+        </div>
+      </div>
+    </details>
 
     <button type="button" class="lock-link" id="einSchliessen">Schließen</button>
   </div>
