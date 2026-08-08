@@ -268,8 +268,15 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
   font: inherit; font-size: 13px; font-weight: 600;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1px;
   transition: transform .1s;
+}
+/* Menge/Ziel des Tages (z.B. "10/30"), zusaetzlich zur Tageszahl - nur bei
+   Mengen-Gewohnheiten vorhanden, siehe renderKalender() in app.js. */
+.kal-menge {
+  font-size: 9px; font-weight: 500; opacity: .85;
+  font-variant-numeric: tabular-nums;
 }
 .kal-zelle:hover:not(:disabled) { transform: scale(1.08); }
 .kal-zelle.leer { background: transparent; cursor: default; }

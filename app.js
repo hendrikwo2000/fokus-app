@@ -692,7 +692,21 @@ function renderKalender() {
       + (!geplant ? "nicht-geplant" : (tag ? tag.status : "offen"))
       + (d === state.heute ? " heute" : "")
       + (zukunft ? " zukunft" : "");
-    zelle.textContent = String(Number(d.slice(8, 10)));
+    const tagZahl = document.createElement("span");
+    tagZahl.className = "kal-tag";
+    tagZahl.textContent = String(Number(d.slice(8, 10)));
+    zelle.appendChild(tagZahl);
+
+    // Menge/Ziel direkt in der Zelle, nicht nur im Tooltip - das damalige
+    // Ziel (tag.ziel), nicht das aktuelle, siehe ziel_damals in tag.js.
+    if (geplant && gewohnheit.typ === "menge") {
+      const menge = document.createElement("span");
+      menge.className = "kal-menge";
+      const ziel = tag ? tag.ziel : gewohnheit.zielmenge;
+      menge.textContent = `${tag ? tag.menge : 0}/${ziel}`;
+      zelle.appendChild(menge);
+    }
+
     zelle.title = `${wochentagVon(d)}, ${formatDatum(d)}`
       + (!geplant ? " — nicht geplant"
         : tag ? `: ${tag.menge}${gewohnheit.typ === "menge" ? " / " + tag.ziel + (gewohnheit.einheit ? " " + gewohnheit.einheit : "") : ""}`
