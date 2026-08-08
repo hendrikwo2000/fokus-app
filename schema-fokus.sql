@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS gewohnheiten (
   typ               TEXT NOT NULL DEFAULT 'binaer' CHECK (typ IN ('binaer', 'menge')),
   zielmenge         INTEGER,
   einheit           TEXT,
+  -- Nur bei typ='menge' relevant: 'mindestens' (Ziel erreichen, bisheriges
+  -- Verhalten) oder 'hoechstens' (Obergrenze, z.B. "Instagram-Minuten").
+  -- Siehe migration-richtung.sql fuer die Begruendung bei bestehenden
+  -- Installationen und _lib/tag.js status() fuer die Statuslogik.
+  richtung          TEXT NOT NULL DEFAULT 'mindestens'
+                      CHECK (richtung IN ('mindestens', 'hoechstens')),
   rhythmus          TEXT NOT NULL DEFAULT 'taeglich'
                       CHECK (rhythmus IN ('taeglich', 'wochentage', 'x_pro_woche')),
   -- Bitmaske, Bit i = Wochentag i aus ["Mo","Di","Mi","Do","Fr","Sa","So"]

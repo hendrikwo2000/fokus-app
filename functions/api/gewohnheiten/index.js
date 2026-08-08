@@ -25,6 +25,7 @@ const MAX_EINHEIT = 12;
 const LOG_TAGE = 730;
 
 const RHYTHMEN = ["taeglich", "wochentage", "x_pro_woche"];
+const RICHTUNGEN = ["mindestens", "hoechstens"];
 
 // Ein Datensatz, wie ihn die App erwartet.
 function alsGewohnheit(z) {
@@ -34,6 +35,7 @@ function alsGewohnheit(z) {
     typ: z.typ,
     zielmenge: z.zielmenge,
     einheit: z.einheit,
+    richtung: z.richtung,
     rhythmus: z.rhythmus,
     wochentageMaske: z.wochentage_maske,
     wochenziel: z.wochenziel,
@@ -93,6 +95,19 @@ function pruefeRhythmus(body) {
   return { werte: { rhythmus, wochentageMaske: null, wochenziel: null } };
 }
 
+/**
+ * Richtung aus dem Anfragekoerper pruefen: 'mindestens' (Ziel erreichen,
+ * Default) oder 'hoechstens' (Obergrenze). Nur bei typ='menge' relevant -
+ * binaere Gewohnheiten kennen keine Richtung, bleiben immer 'mindestens'.
+ * Ungueltige/fehlende Werte fallen still auf den Default zurueck, genau wie
+ * bei pruefeRhythmus().
+ */
+function pruefeRichtung(body, typ) {
+  if (typ === "binaer") return { werte: { richtung: "mindestens" } };
+  const richtung = RICHTUNGEN.includes(body?.richtung) ? body.richtung : "mindestens";
+  return { werte: { richtung } };
+}
+
 export async function onRequestGet({ request, env }) {
   const { nutzer, nutzerId, todoZugang, fehler } = await nutzerOderFehler(request, env);
   if (fehler) return fehler;
@@ -106,7 +121,7 @@ export async function onRequestGet({ request, env }) {
 
   try {
     const gewohnheiten = (await env.DB.prepare(
-      `SELECT id, name, typ, zielmenge, einheit, rhythmus, wochentage_maske, wochenziel,
+      `SELECT id, name, typ, zielmenge, einheit, richtung, rhythmus, wochentage_maske, wochenziel,
               position, archiviert
          FROM gewohnheiten
         WHERE user_id = ?
@@ -138,7 +153,7 @@ export async function onRequestGet({ request, env }) {
       // Fuer den Status zaehlt das Ziel, das beim Loggen galt - sonst faerbt
       // ein spaeter angehobenes Ziel alte gruene Tage nachtraeglich gelb.
       const ziel = l.ziel_damals != null ? l.ziel_damals : info.zielmenge;
-      const st = status(info.typ, l.menge, ziel);
+      const st = status(info.typ, l.menge, ziel, info.richtung);
 
       if (st === "erledigt") {
         (gruene[l.gewohnheit_id] || (gruene[l.gewohnheit_id] = new Set())).add(l.datum);
@@ -184,6 +199,8 @@ export async function onRequestPost({ request, env }) {
   const { werte: rhythmusWerte, meldung: rhythmusMeldung } = pruefeRhythmus(body);
   if (rhythmusMeldung) return json({ error: rhythmusMeldung }, 400);
 
+  const { werte: richtungWerte } = pruefeRichtung(body, typ);
+
   try {
     const anzahl = await env.DB.prepare(
       "SELECT COUNT(*) AS n FROM gewohnheiten WHERE user_id = ? AND archiviert = 0"
@@ -201,10 +218,10 @@ export async function onRequestPost({ request, env }) {
     const id = crypto.randomUUID();
     await env.DB.prepare(
       `INSERT INTO gewohnheiten
-         (id, user_id, name, typ, zielmenge, einheit, rhythmus, wochentage_maske, wochenziel, position)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, user_id, name, typ, zielmenge, einheit, richtung, rhythmus, wochentage_maske, wochenziel, position)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
-      id, nutzerId, werte.name, typ, werte.zielmenge, werte.einheit,
+      id, nutzerId, werte.name, typ, werte.zielmenge, werte.einheit, richtungWerte.richtung,
       rhythmusWerte.rhythmus, rhythmusWerte.wochentageMaske, rhythmusWerte.wochenziel,
       letzte.p + 1
     ).run();
@@ -213,7 +230,7 @@ export async function onRequestPost({ request, env }) {
       ok: true,
       gewohnheit: {
         id, name: werte.name, typ,
-        zielmenge: werte.zielmenge, einheit: werte.einheit,
+        zielmenge: werte.zielmenge, einheit: werte.einheit, richtung: richtungWerte.richtung,
         rhythmus: rhythmusWerte.rhythmus,
         wochentageMaske: rhythmusWerte.wochentageMaske,
         wochenziel: rhythmusWerte.wochenziel,
@@ -240,6 +257,11 @@ export async function onRequestPost({ request, env }) {
  * fuer Anzeige und Straehne, vergangene Log-Eintraege bleiben unangetastet,
  * aber die daraus abgeleitete Straehne wird mit dem AKTUELLEN Rhythmus neu
  * durchgerechnet.
+ *
+ * Die RICHTUNG ('mindestens'/'hoechstens') ist genauso gesperrt wie der Typ,
+ * sobald ein Tag erfasst ist - aus denselben Gruenden: eine Umkehr wuerde die
+ * ganze Historie rueckwirkend umbewerten (aus "im Rahmen geblieben" wuerde
+ * ploetzlich "Ziel verfehlt" oder umgekehrt).
  */
 export async function onRequestPatch({ request, env }) {
   const { nutzerId, fehler } = await nutzerOderFehler(request, env);
@@ -253,7 +275,7 @@ export async function onRequestPatch({ request, env }) {
 
   try {
     const alt = await env.DB.prepare(
-      "SELECT id, typ, archiviert FROM gewohnheiten WHERE id = ? AND user_id = ?"
+      "SELECT id, typ, richtung, archiviert FROM gewohnheiten WHERE id = ? AND user_id = ?"
     ).bind(id, nutzerId).first();
     if (!alt) return json({ error: "Gewohnheit nicht gefunden" }, 404);
 
@@ -283,15 +305,25 @@ export async function onRequestPatch({ request, env }) {
     const { werte: rhythmusWerte, meldung: rhythmusMeldung } = pruefeRhythmus(body);
     if (rhythmusMeldung) return json({ error: rhythmusMeldung }, 400);
 
+    const { werte: richtungWerte } = pruefeRichtung(body, typ);
+    if (richtungWerte.richtung !== alt.richtung) {
+      const hatHistorie = await env.DB.prepare(
+        "SELECT 1 FROM gewohnheit_logs WHERE gewohnheit_id = ? LIMIT 1"
+      ).bind(id).first();
+      if (hatHistorie) {
+        return json({ error: "Die Richtung lässt sich nicht mehr ändern, sobald ein Tag erfasst ist." }, 409);
+      }
+    }
+
     const flagge = body?.archiviert !== undefined ? (body.archiviert ? 1 : 0) : alt.archiviert;
     await env.DB.prepare(
       `UPDATE gewohnheiten
-          SET name = ?, typ = ?, zielmenge = ?, einheit = ?,
+          SET name = ?, typ = ?, zielmenge = ?, einheit = ?, richtung = ?,
               rhythmus = ?, wochentage_maske = ?, wochenziel = ?,
               archiviert = ?
         WHERE id = ?`
     ).bind(
-      werte.name, typ, werte.zielmenge, werte.einheit,
+      werte.name, typ, werte.zielmenge, werte.einheit, richtungWerte.richtung,
       rhythmusWerte.rhythmus, rhythmusWerte.wochentageMaske, rhythmusWerte.wochenziel,
       flagge, id
     ).run();
@@ -311,7 +343,7 @@ export async function onRequestPatch({ request, env }) {
       ok: true,
       gewohnheit: {
         id, name: werte.name, typ,
-        zielmenge: werte.zielmenge, einheit: werte.einheit,
+        zielmenge: werte.zielmenge, einheit: werte.einheit, richtung: richtungWerte.richtung,
         rhythmus: rhythmusWerte.rhythmus,
         wochentageMaske: rhythmusWerte.wochentageMaske,
         wochenziel: rhythmusWerte.wochenziel,

@@ -41,7 +41,7 @@ export async function onRequestPut({ request, env }) {
 
   try {
     const gewohnheit = await env.DB.prepare(
-      `SELECT id, typ, zielmenge, rhythmus, wochentage_maske, wochenziel
+      `SELECT id, typ, zielmenge, richtung, rhythmus, wochentage_maske, wochenziel
          FROM gewohnheiten WHERE id = ? AND user_id = ?`
     ).bind(id, nutzerId).first();
     if (!gewohnheit) return json({ error: "Gewohnheit nicht gefunden" }, 404);
@@ -81,7 +81,7 @@ export async function onRequestPut({ request, env }) {
     let zielDesTages = gewohnheit.zielmenge;
     for (const l of alle) {
       const ziel = l.ziel_damals != null ? l.ziel_damals : gewohnheit.zielmenge;
-      const st = status(gewohnheit.typ, l.menge, ziel);
+      const st = status(gewohnheit.typ, l.menge, ziel, gewohnheit.richtung);
       if (st === "erledigt") gruene.add(l.datum);
       if (l.datum === datum) {
         neuerStatus = st;

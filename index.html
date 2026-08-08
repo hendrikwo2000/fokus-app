@@ -47,8 +47,9 @@
   <div class="kal-raster" id="kalender"></div>
   <div class="legende">
     <span><i style="background:var(--leer)"></i>offen</span>
-    <span><i style="background:var(--yellow)"></i>teilweise</span>
+    <span id="kalLegendeTeilweise"><i style="background:var(--yellow)"></i>teilweise</span>
     <span><i style="background:var(--green)"></i>erledigt</span>
+    <span id="kalLegendeUeberschritten" hidden><i style="background:var(--red)"></i>überschritten</span>
     <span id="kalLegendeGeplant" hidden><i class="kal-nicht-geplant-swatch"></i>nicht geplant</span>
   </div>
   <p class="hinweis" style="text-align:center; margin-top:12px;">
@@ -152,6 +153,14 @@
         <label for="gewEinheit">Einheit (optional)</label>
         <input type="text" id="gewEinheit" maxlength="12" placeholder="z. B. Min">
       </div>
+    </div>
+    <div class="popup-feld" id="gewRichtungFeld" hidden>
+      <label>Ziel-Art</label>
+      <div class="wahl" id="gewRichtung">
+        <button type="button" data-richtung="mindestens" aria-pressed="true">Mindestens</button>
+        <button type="button" data-richtung="hoechstens" aria-pressed="false">Höchstens</button>
+      </div>
+      <p id="gewRichtungHinweis" hidden>Sobald ein Tag erfasst ist, lässt sich die Ziel-Art nicht mehr ändern.</p>
     </div>
     <div class="popup-feld">
       <label>Rhythmus</label>

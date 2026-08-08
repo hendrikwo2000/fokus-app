@@ -610,6 +610,7 @@ function renderVerlauf() {
     $("kalZurueck").disabled = true;
     $("kalVor").disabled = true;
     $("kalLegendeGeplant").hidden = true;
+    $("kalLegendeUeberschritten").hidden = true;
     const kal = $("kalender");
     kal.replaceChildren();
     const p = document.createElement("p");
@@ -662,6 +663,12 @@ function renderKalender() {
   const fruehestesMonat = state.historieAb.slice(0, 7);
   $("kalZurueck").disabled = verlauf.monat <= fruehestesMonat;
   $("kalVor").disabled = verlauf.monat >= heuteMonat;
+
+  // "teilweise" gibt es nur bei mindestens-Gewohnheiten, "ueberschritten"
+  // nur bei hoechstens-Gewohnheiten - binaere Gewohnheiten kennen keins von
+  // beiden (siehe status() in _lib/tag.js).
+  $("kalLegendeTeilweise").hidden = !(gewohnheit.typ === "menge" && gewohnheit.richtung !== "hoechstens");
+  $("kalLegendeUeberschritten").hidden = !(gewohnheit.typ === "menge" && gewohnheit.richtung === "hoechstens");
 
   const [jahr, monat] = verlauf.monat.split("-").map(Number);
   $("kalMonat").textContent = new Date(Date.UTC(jahr, monat - 1, 1))
@@ -982,6 +989,7 @@ document.addEventListener("visibilitychange", async () => {
 
 let bearbeiteteGewohnheit = null;
 let gewaehlterTyp = "binaer";
+let gewaehlteRichtung = "mindestens";
 let gewaehlterRhythmus = "taeglich";
 let gewaehlteWochentage = new Set(); // Indizes 0=Mo..6=So, siehe WOCHENTAGE
 
@@ -991,6 +999,14 @@ function setzeTypWahl(typ) {
     knopf.setAttribute("aria-pressed", String(knopf.dataset.typ === typ));
   }
   $("gewZielFeld").hidden = typ !== "menge";
+  $("gewRichtungFeld").hidden = typ !== "menge";
+}
+
+function setzeRichtungWahl(richtung) {
+  gewaehlteRichtung = richtung;
+  for (const knopf of $("gewRichtung").querySelectorAll("button")) {
+    knopf.setAttribute("aria-pressed", String(knopf.dataset.richtung === richtung));
+  }
 }
 
 function setzeRhythmusWahl(rhythmus) {
@@ -1030,6 +1046,12 @@ function oeffneGewohnheitDialog(gewohnheit) {
   for (const knopf of $("gewTyp").querySelectorAll("button")) knopf.disabled = hatHistorie;
   $("gewTypHinweis").hidden = !hatHistorie;
 
+  // Dieselbe Sperre gilt fuer die Richtung: eine Umkehr wuerde die Historie
+  // rueckwirkend umbewerten, genau wie ein Typwechsel.
+  setzeRichtungWahl((gewohnheit && gewohnheit.richtung) || "mindestens");
+  for (const knopf of $("gewRichtung").querySelectorAll("button")) knopf.disabled = hatHistorie;
+  $("gewRichtungHinweis").hidden = !hatHistorie;
+
   // Rhythmus ist - anders als der Typ - auch beim Bearbeiten frei wechselbar.
   gewaehlteWochentage = new Set();
   const maske = (gewohnheit && gewohnheit.wochentageMaske) || 0;
@@ -1048,6 +1070,9 @@ function oeffneGewohnheitDialog(gewohnheit) {
 
 for (const knopf of $("gewTyp").querySelectorAll("button")) {
   knopf.onclick = () => setzeTypWahl(knopf.dataset.typ);
+}
+for (const knopf of $("gewRichtung").querySelectorAll("button")) {
+  knopf.onclick = () => setzeRichtungWahl(knopf.dataset.richtung);
 }
 for (const knopf of $("gewRhythmus").querySelectorAll("button")) {
   knopf.onclick = () => setzeRhythmusWahl(knopf.dataset.rhythmus);
@@ -1076,6 +1101,7 @@ $("gewSpeichern").onclick = async () => {
     typ: gewaehlterTyp,
     zielmenge: Number($("gewZiel").value),
     einheit: $("gewEinheit").value.trim(),
+    richtung: gewaehlteRichtung,
     rhythmus: gewaehlterRhythmus,
     wochentageMaske,
     wochenziel: Number($("gewWochenziel").value),
@@ -1122,8 +1148,9 @@ function oeffneTagDialog(gewohnheit, datum) {
   $("tagMsg").textContent = "";
 
   const istMenge = gewohnheit.typ === "menge";
+  const zielWort = gewohnheit.richtung === "hoechstens" ? "Höchstens" : "Ziel";
   $("tagLabel").textContent = istMenge
-    ? (gewohnheit.einheit ? `Menge in ${gewohnheit.einheit} (Ziel ${ziel})` : `Menge (Ziel ${ziel})`)
+    ? (gewohnheit.einheit ? `Menge in ${gewohnheit.einheit} (${zielWort} ${ziel})` : `Menge (${zielWort} ${ziel})`)
     : "Status";
   const wert = tag ? tag.menge : 0;
   $("tagMenge").value = String(wert);

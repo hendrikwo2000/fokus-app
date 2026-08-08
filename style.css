@@ -158,6 +158,9 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .gew.erledigt { border-left: 4px solid var(--green); }
 .gew.teilweise { border-left: 4px solid var(--yellow); }
 .gew.offen { border-left: 4px solid var(--leer); }
+/* Obergrenze ueberschritten (richtung='hoechstens', z.B. Instagram-Minuten
+   ueber dem Limit) - eigener Zustand, siehe status() in _lib/tag.js. */
+.gew.ueberschritten { border-left: 4px solid var(--red); }
 
 .gew-haupt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .gew-name { font-weight: 600; overflow-wrap: anywhere; }
@@ -169,6 +172,7 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .balken { height: 6px; border-radius: 3px; background: var(--leer); overflow: hidden; }
 .balken > i { display: block; height: 100%; border-radius: 3px; background: var(--yellow); transition: width .2s; }
 .gew.erledigt .balken > i { background: var(--green); }
+.gew.ueberschritten .balken > i { background: var(--red); }
 
 /* Grosses Haekchen fuer binaere Gewohnheiten. Mindestens 44px, damit es am
    Handy sicher zu treffen ist. */
@@ -282,6 +286,7 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .kal-zelle.leer { background: transparent; cursor: default; }
 .kal-zelle.erledigt { background: var(--green); color: #fff; }
 .kal-zelle.teilweise { background: var(--yellow); color: #1f2430; }
+.kal-zelle.ueberschritten { background: var(--red); color: #fff; }
 .kal-zelle.heute { box-shadow: 0 0 0 2px var(--accent); }
 /* Zukunft: nicht anklickbar und kaum sichtbar - sie soll nicht wie ein
    verpasster Tag aussehen. */

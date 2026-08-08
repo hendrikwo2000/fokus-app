@@ -72,15 +72,28 @@ export function montagVon(datum) {
 }
 
 /**
- * 'offen' | 'teilweise' | 'erledigt' aus Menge und Ziel.
+ * 'offen' | 'teilweise' | 'erledigt' | 'ueberschritten' aus Menge, Ziel und
+ * Richtung.
  *
  * Binaere Gewohnheiten haben kein Ziel und kennen kein "teilweise" - dort ist
  * jede Menge ab 1 erledigt.
+ *
+ * Bei richtung='hoechstens' (Obergrenze, z.B. "Instagram-Minuten") gibt es
+ * kein "teilweise" - es gibt kein sinnvolles "auf halbem Weg zum Limit", nur
+ * "noch im Rahmen" (erledigt) oder "drüber" (ueberschritten). Menge 0 gilt
+ * als "offen": noch nichts eingetragen, nicht automatisch "im Rahmen".
  */
-export function status(typ, menge, ziel) {
+export function status(typ, menge, ziel, richtung = "mindestens") {
   const m = Number(menge) || 0;
   if (typ === "binaer") return m >= 1 ? "erledigt" : "offen";
   const z = Number(ziel) || 0;
+
+  if (richtung === "hoechstens") {
+    if (m === 0) return "offen";
+    if (z > 0 && m > z) return "ueberschritten";
+    return "erledigt";
+  }
+
   if (z > 0 && m >= z) return "erledigt";
   return m > 0 ? "teilweise" : "offen";
 }

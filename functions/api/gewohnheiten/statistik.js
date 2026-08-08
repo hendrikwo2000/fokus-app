@@ -40,7 +40,7 @@ export async function onRequestGet({ request, env }) {
 
   try {
     const gewohnheiten = (await env.DB.prepare(
-      `SELECT id, name, typ, zielmenge, rhythmus, wochentage_maske, wochenziel
+      `SELECT id, name, typ, zielmenge, richtung, rhythmus, wochentage_maske, wochenziel
          FROM gewohnheiten WHERE user_id = ? AND archiviert = 0
         ORDER BY position, created_at`
     ).bind(nutzerId).all()).results;
@@ -60,7 +60,7 @@ export async function onRequestGet({ request, env }) {
       const l = (logsVon[g.id] || {})[datum];
       if (!l) return false;
       const ziel = l.ziel_damals != null ? l.ziel_damals : g.zielmenge;
-      return status(g.typ, l.menge, ziel) === "erledigt";
+      return status(g.typ, l.menge, ziel, g.richtung) === "erledigt";
     }
 
     const ergebnis = gewohnheiten.map((g) => {
