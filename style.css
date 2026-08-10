@@ -94,7 +94,10 @@ input[type="number"] {
   color: var(--text);
   padding: 8px 10px;
   border-radius: 8px;
-  font-size: 15px;
+  /* Keine 15px: Safari auf dem iPhone zoomt beim Antippen automatisch in
+     jedes Feld unter 16px hinein. Solange der Zoom gesperrt war, fiel das
+     nicht auf - seit er wieder erlaubt ist (index.html), schon. */
+  font-size: 16px;
   font-family: inherit;
   outline: none;
   transition: border-color .15s, box-shadow .15s;
@@ -162,12 +165,23 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
    ueber dem Limit) - eigener Zustand, siehe status() in _lib/tag.js. */
 .gew.ueberschritten { border-left: 4px solid var(--red); }
 
-.gew-haupt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+/* touch-action: manipulation schaltet HIER den Doppeltipp-Zoom ab, damit der
+   Doppeltipp zum Bearbeiten (app.js) ankommt. Nur auf diesem Element - der
+   Rest der Seite bleibt zoombar, deshalb darf die viewport-Angabe in
+   index.html den Zoom erlauben. Aufziehen mit zwei Fingern geht auch hier. */
+.gew-haupt {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; gap: 5px;
+  touch-action: manipulation;
+}
 .gew-name { font-weight: 600; overflow-wrap: anywhere; }
 .gew-zeile { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
 
 .straehne { white-space: nowrap; }
 .straehne.aktiv { color: var(--accent); font-weight: 600; }
+
+/* Offline gemerkt, noch nicht beim Server - siehe Warteschlange in app.js. */
+.wartet { white-space: nowrap; color: var(--yellow); font-weight: 600; }
 
 .balken { height: 6px; border-radius: 3px; background: var(--leer); overflow: hidden; }
 .balken > i { display: block; height: 100%; border-radius: 3px; background: var(--yellow); transition: width .2s; }

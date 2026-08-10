@@ -2,10 +2,12 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<!-- maximum-scale/user-scalable bewusst aus: Doppeltippen zum Bearbeiten
-     (siehe app.js, .gew-haupt) kollidiert sonst mit dem Zoom-Gesture des
-     Browsers auf dem Handy. -->
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<!-- Zoom ist erlaubt. Frueher stand hier maximum-scale/user-scalable=no, damit
+     das Doppeltippen zum Bearbeiten nicht mit dem Doppeltipp-Zoom kollidiert -
+     das kostete aber den Zoom auf der ganzen Seite. Denselben Zweck erfuellt
+     jetzt "touch-action: manipulation" auf .gew-haupt (style.css): dort ist
+     nur der Doppeltipp-Zoom aus, Aufziehen mit zwei Fingern geht ueberall. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#4f63d2">
 <title>Fokus</title>

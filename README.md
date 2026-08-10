@@ -116,6 +116,21 @@ letzten acht Wochen. Sie hat mit den Gewohnheiten nichts zu tun.
 Im Browser das Teilen-Menü öffnen und „Zum Home-Bildschirm". Danach startet die
 App ohne Adresszeile wie eine normale App.
 
+## Ohne Verbindung
+
+Abhaken und Mengen gehen auch offline. Die Karte springt sofort um und trägt
+ein *↻ nicht gespeichert*, bis wieder Netz da ist — dann geht alles von selbst
+raus, spätestens wenn du die App das nächste Mal öffnest. Auch die Liste selbst
+ist offline da: sie zeigt den Stand vom letzten Mal.
+
+Zwei Dinge, die dabei nicht mitkommen:
+
+- **Die Flamme bleibt stehen.** Sie wird auf dem Server aus der ganzen
+  Historie gerechnet. Nach dem Nachtragen stimmt sie wieder.
+- **Gewohnheiten anlegen oder ändern braucht Netz**, genauso der Fokus-Timer.
+  Beim Timer ist das Absicht: er misst die Zeit auf dem Server, eine Stunde
+  später nachgereicht wäre die Sitzung erfunden.
+
 ## Hell und dunkel
 
 Umschalter im Zahnrad-Menü unter *Darstellung*. Beim ersten Aufruf folgt die

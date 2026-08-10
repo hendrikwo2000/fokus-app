@@ -297,6 +297,48 @@ Nutzer auf dem alten Stand hängen.
    `X-Cron-Secret: <Wert von PUSH_CRON_SECRET>`, gleiche Häufigkeit wie der
    bestehende ToDo-Job
 
+## Offline
+
+Der Service Worker hält nur die Oberfläche vor. Damit die App ohne Netz auch
+etwas anzeigen und annehmen kann, liegen zwei Dinge im `localStorage`:
+
+| Schlüssel | Inhalt |
+| --- | --- |
+| `fokus_stand` | Die letzte erfolgreiche Antwort von `GET /api/gewohnheiten` — kompletter Bootstrap inklusive Historie |
+| `fokus_warteschlange` | Noch nicht abgeschickte Tage: `{gewohnheitId, datum, menge, loeschen}` |
+
+**Nur Tage wandern in die Warteschlange.** Gewohnheiten anlegen/ändern und der
+Fokus-Timer brauchen weiter Netz. Beim Timer ist das Absicht: er rechnet
+serverseitig aus `gestartet_am`, eine Stunde später nachgereicht wäre die
+Sitzung schlicht gelogen.
+
+Drei Punkte, an denen man sonst stolpert:
+
+- **Gemerkt wird nur bei `status === 0`** (Fetch geworfen, kein Netz). Ein
+  400/403/500 ist eine Absage des Servers — die bliebe beim nächsten Versuch
+  dieselbe und gehört dem Nutzer gesagt, nicht in eine Endlosschleife.
+  Beim Nachliefern gilt dieselbe Regel plus 401: 0 und 401 bleiben liegen
+  (Netz weg bzw. abgemeldet, beides erledigt sich), alles andere wird
+  verworfen.
+- **`heute` wird beim Nachliefern frisch gesetzt**, nicht mitgespeichert.
+  `pruefeHeute()` lässt nur einen Tag Abstand zur Serverzeit zu — mit dem
+  gemerkten „heute" von vorgestern wäre jeder Nachtrag ein 400er. Das `datum`
+  bleibt natürlich stehen, der Eintrag läuft dann als Nachtrag durch.
+- **Nach jedem Laden muss `legeWarteschlangeUeber()` laufen.** Der Serverstand
+  überschreibt `state.logs`, und was noch in der Warteschlange steht, ist
+  neuer — ohne das springt eine offline abgehakte Karte beim nächsten Laden
+  zurück.
+
+Den Status rechnet die App offline selbst (`statusVon()` in `app.js`) — ein
+**Spiegel von `status()` in `_lib/tag.js`**. Ändert sich die Regel dort, muss
+sie hier mit. Die Flamme wird bewusst NICHT gespiegelt: sie hängt an der
+ganzen Historie samt Rhythmus, steht offline auf ihrem letzten Wert und
+stimmt nach dem Nachliefern von selbst wieder.
+
+Beim Abmelden werden beide Schlüssel gelöscht (`vergissStand()`), sonst
+blitzte der Bestand des vorherigen Kontos auf, wenn sich an demselben Gerät
+jemand anderes anmeldet.
+
 ## Lokal testen
 
 ```bash

@@ -123,6 +123,166 @@ async function api(pfad, optionen = {}) {
   }
 }
 
+/* ------------------------------------------------- Offline-Warteschlange */
+
+/**
+ * Ohne Verbindung gehen Abhaken und Mengen nicht verloren: sie landen in einer
+ * Warteschlange im localStorage und werden nachgeliefert, sobald wieder Netz
+ * da ist. Die Karte springt sofort um, als waere es durchgegangen.
+ *
+ * Bewusst NUR fuer Tage - der einzige Schreibweg, der unterwegs passiert.
+ * Gewohnheiten anlegen/aendern und der Fokus-Timer brauchen weiter Netz. Beim
+ * Timer ist das Absicht: er rechnet serverseitig aus dem Startzeitpunkt, eine
+ * Stunde spaeter nachgereicht waere die Sitzung schlicht gelogen.
+ *
+ * Was die Warteschlange NICHT kann: die Flamme mitrechnen. Die haengt an der
+ * ganzen Historie samt Rhythmus - sie bleibt offline auf ihrem letzten Wert
+ * stehen und stimmt nach dem Nachliefern von selbst wieder.
+ */
+const WARTE_SCHLUESSEL = "fokus_warteschlange";
+const STAND_SCHLUESSEL = "fokus_stand";
+
+function liesWarteschlange() {
+  try { return JSON.parse(localStorage.getItem(WARTE_SCHLUESSEL)) || []; }
+  catch (e) { return []; }
+}
+
+let warteschlange = liesWarteschlange();
+
+function speichereWarteschlange() {
+  try {
+    if (warteschlange.length) localStorage.setItem(WARTE_SCHLUESSEL, JSON.stringify(warteschlange));
+    else localStorage.removeItem(WARTE_SCHLUESSEL);
+  } catch (e) { /* voller Speicher: lieber nichts merken als abstuerzen */ }
+}
+
+// Ein Tag, ein Eintrag: zehnmal auf "+" zu tippen hinterlaesst nicht zehn
+// Anfragen, sondern den letzten Stand. Der Server kennt ohnehin nur "setzen".
+function merkeOffline(gewohnheitId, datum, menge, loeschen) {
+  warteschlange = warteschlange.filter(e => !(e.gewohnheitId === gewohnheitId && e.datum === datum));
+  warteschlange.push({ gewohnheitId, datum, menge, loeschen });
+  speichereWarteschlange();
+}
+
+function wartetNoch(gewohnheitId, datum) {
+  return warteschlange.some(e => e.gewohnheitId === gewohnheitId && e.datum === datum);
+}
+
+/**
+ * Status eines Tages im Client rechnen - Spiegel von status() in
+ * functions/_lib/tag.js. Sonst kommt der Status immer vom Server; offline
+ * gibt es niemanden, der ihn liefert. Aendert sich die Regel dort, muss sie
+ * hier mitgezogen werden.
+ */
+function statusVon(gewohnheit, menge, ziel) {
+  const m = Number(menge) || 0;
+  if (gewohnheit.typ === "binaer") return m >= 1 ? "erledigt" : "offen";
+  const z = Number(ziel) || 0;
+  if (gewohnheit.richtung === "hoechstens") {
+    return (z > 0 && m > z) ? "ueberschritten" : "erledigt";
+  }
+  if (z > 0 && m >= z) return "erledigt";
+  return m > 0 ? "teilweise" : "offen";
+}
+
+// Einen Tag im geladenen Bestand setzen, ohne Server - dieselbe Rechnung, die
+// log.js sonst macht: vorhandene Tage behalten ihr damaliges Ziel, "offen"
+// heisst kein Eintrag.
+function setzeTagOertlich(gewohnheit, datum, menge, loeschen) {
+  const eimer = state.logs[gewohnheit.id] || (state.logs[gewohnheit.id] = {});
+  const alt = eimer[datum];
+  const ziel = alt ? alt.ziel : gewohnheit.zielmenge;
+  const wert = gewohnheit.typ === "binaer" ? (menge >= 1 ? 1 : 0) : menge;
+  const zustand = loeschen ? "offen" : statusVon(gewohnheit, wert, ziel);
+  if (zustand === "offen") delete eimer[datum];
+  else eimer[datum] = { menge: wert, ziel, status: zustand };
+}
+
+// Nach jedem Laden vom Server: was noch in der Warteschlange steht, ist neuer
+// als der Serverstand und gehoert wieder obendrauf - sonst spraenge eine
+// offline abgehakte Karte beim naechsten Laden zurueck.
+function legeWarteschlangeUeber() {
+  for (const e of warteschlange) {
+    const g = state.gewohnheiten.find(x => x.id === e.gewohnheitId);
+    if (g) setzeTagOertlich(g, e.datum, e.menge, e.loeschen);
+  }
+}
+
+let liefertNach = false;
+
+/**
+ * Die Warteschlange abarbeiten. Laeuft beim Start, beim Zurueckkehren zur App
+ * und sobald der Browser wieder online meldet.
+ */
+async function liefereNach() {
+  if (liefertNach || !warteschlange.length) return;
+  liefertNach = true;
+
+  const rest = [];
+  let erfolg = 0;
+  for (const e of warteschlange) {
+    const antwort = await api("/api/gewohnheiten/log", {
+      method: "PUT",
+      body: JSON.stringify({
+        gewohnheitId: e.gewohnheitId, datum: e.datum, menge: e.menge, loeschen: e.loeschen,
+        // "heute" IMMER frisch: der Server laesst nur einen Tag Abstand zu
+        // seiner eigenen Zeit zu (pruefeHeute in _lib/tag.js). Mit dem
+        // gemerkten "heute" von vorgestern waere jeder Nachtrag ein 400er.
+        heute: heuteStr(),
+      }),
+    });
+    // Weiter kein Netz (0) oder abgemeldet (401): aufheben, das erledigt sich
+    // von selbst. Alles andere ist eine echte Absage des Servers - die bliebe
+    // beim naechsten Versuch dieselbe, also weg damit statt endlos zu klopfen.
+    if (antwort.status === 0 || antwort.status === 401) rest.push(e);
+    else if (antwort.ok) erfolg++;
+  }
+
+  const verworfen = warteschlange.length - rest.length - erfolg;
+  warteschlange = rest;
+  speichereWarteschlange();
+  liefertNach = false;
+
+  if (erfolg) await neuLaden();
+  if (verworfen) {
+    melde(verworfen === 1
+      ? "1 Eintrag ließ sich nicht nachtragen"
+      : `${verworfen} Einträge ließen sich nicht nachtragen`);
+  } else if (erfolg) {
+    melde(erfolg === 1 ? "1 Eintrag nachgetragen" : `${erfolg} Einträge nachgetragen`);
+  }
+}
+
+window.addEventListener("online", liefereNach);
+
+/* --------------------------------------------------- Letzter Stand lokal */
+
+/**
+ * Der zuletzt geladene Bestand im localStorage. Ohne ihn staende die App beim
+ * Oeffnen ohne Netz vor einer leeren Liste - und ohne Liste laesst sich auch
+ * nichts abhaken, das die Warteschlange nachtragen koennte. Genau der Fall
+ * (App unterwegs neu oeffnen) ist der haeufigste Offline-Moment.
+ */
+function merkeStand(daten) {
+  try { localStorage.setItem(STAND_SCHLUESSEL, JSON.stringify(daten)); }
+  catch (e) { /* zu gross oder gesperrt: dann eben ohne */ }
+}
+
+function liesStand() {
+  try { return JSON.parse(localStorage.getItem(STAND_SCHLUESSEL)); }
+  catch (e) { return null; }
+}
+
+// Beim Abmelden weg: sonst blitzte der Bestand des vorherigen Kontos auf,
+// wenn sich danach jemand anderes an demselben Geraet anmeldet.
+function vergissStand() {
+  try {
+    localStorage.removeItem(STAND_SCHLUESSEL);
+    localStorage.removeItem(WARTE_SCHLUESSEL);
+  } catch (e) { /* egal */ }
+  warteschlange = [];
+}
+
 let snackTimer = null;
 function melde(text) {
   const bar = $("snackbar");
@@ -341,19 +501,14 @@ function zeigeGesperrt(text) {
 
 $("lockAbmelden").onclick = async () => {
   await api("/api/auth/logout", { method: "POST" });
+  vergissStand();
   location.reload();
 };
 
 /* ---------------------------------------------------------------- Laden */
 
-async function ladeGewohnheiten() {
-  state.heute = heuteStr();
-  const antwort = await api(`/api/gewohnheiten?heute=${state.heute}`);
-  if (antwort.status === 401) return "anmelden";
-  if (antwort.status === 403) return antwort.daten.error || "gesperrt";
-  if (!antwort.ok) { melde(antwort.daten.error || "Laden fehlgeschlagen"); return null; }
-
-  const d = antwort.daten;
+function uebernimmStand(d) {
+  if (!d || !d.gewohnheiten) return false;
   state.gewohnheiten = d.gewohnheiten;
   state.logs = d.logs;
   state.straehnen = d.straehnen;
@@ -361,6 +516,30 @@ async function ladeGewohnheiten() {
   state.email = d.email;
   state.name = d.name;
   state.todoZugang = d.todoZugang;
+  return true;
+}
+
+async function ladeGewohnheiten() {
+  state.heute = heuteStr();
+  const antwort = await api(`/api/gewohnheiten?heute=${state.heute}`);
+  if (antwort.status === 401) return "anmelden";
+  if (antwort.status === 403) return antwort.daten.error || "gesperrt";
+
+  // Kein Netz: mit dem zuletzt gesehenen Stand weiterarbeiten. Nur bei
+  // Status 0 - ein 500er ist eine Antwort des Servers, da waere ein
+  // stillschweigend alter Bestand irrefuehrend.
+  if (antwort.status === 0) {
+    if (!uebernimmStand(liesStand())) { melde("Keine Verbindung"); return null; }
+    legeWarteschlangeUeber();
+    melde("Offline — letzter bekannter Stand");
+    return null;
+  }
+  if (!antwort.ok) { melde(antwort.daten.error || "Laden fehlgeschlagen"); return null; }
+
+  uebernimmStand(antwort.daten);
+  merkeStand(antwort.daten);
+  // Was noch nicht beim Server war, gehoert wieder obendrauf.
+  legeWarteschlangeUeber();
   return null;
 }
 
@@ -397,6 +576,8 @@ async function start() {
   $("reiter").hidden = false;
   $("einstellungenBtn").hidden = false;
   zeigeAnsicht(aktiveAnsicht);
+  // Was beim letzten Mal ohne Netz liegen geblieben ist, geht jetzt raus.
+  liefereNach();
 }
 
 /* --------------------------------------------------------- Tagesansicht */
@@ -489,6 +670,9 @@ function renderHeute() {
     // koennten Balken und Haken auseinanderlaufen, sobald jemand das Ziel
     // aendert - der Status faellt serverseitig ebenfalls gegen ziel_damals.
     const ziel = tag ? tag.ziel : g.zielmenge;
+    // Obergrenze statt Soll: dreht die Bedeutung von "geschafft" um und damit
+    // auch die des Balkens und des Hakens (beide weiter unten).
+    const obergrenze = g.typ === "menge" && g.richtung === "hoechstens";
 
     const karte = document.createElement("div");
     karte.className = `gew ${zustand}`;
@@ -529,13 +713,31 @@ function renderHeute() {
     st.textContent = straehne > 0 ? `🔥 ${straehne} Tage` : "keine Flamme";
     zeile.appendChild(st);
 
+    // Offline abgehakt und noch nicht beim Server. Die Karte zeigt trotzdem
+    // schon den neuen Stand - ohne diesen Hinweis saehe sie aus, als waere
+    // alles im Kasten.
+    if (wartetNoch(g.id, state.heute)) {
+      const wartet = document.createElement("span");
+      wartet.className = "wartet";
+      wartet.textContent = "↻ nicht gespeichert";
+      zeile.appendChild(wartet);
+    }
+
     haupt.appendChild(zeile);
 
     if (g.typ === "menge") {
       const balken = document.createElement("div");
       balken.className = "balken";
       const fuellung = document.createElement("i");
-      fuellung.style.width = `${Math.min(100, Math.round(menge / ziel * 100))}%`;
+      // Bei einer Obergrenze zeigt der Balken, was noch UEBRIG ist, nicht was
+      // verbraucht wurde. Sonst hiesse "voll" bei einem Soll gut und bei einer
+      // Grenze schlecht - derselbe Balken mit zwei Bedeutungen. Ueber der
+      // Grenze laeuft er wieder voll, dann rot: ein leerer roter Balken waere
+      // gar nicht zu sehen.
+      const anteil = obergrenze
+        ? (zustand === "ueberschritten" ? 100 : 100 - menge / ziel * 100)
+        : menge / ziel * 100;
+      fuellung.style.width = `${Math.max(0, Math.min(100, Math.round(anteil)))}%`;
       balken.appendChild(fuellung);
       haupt.appendChild(balken);
     }
@@ -586,7 +788,6 @@ function renderHeute() {
     // ausreizen, sondern gar nichts davon gemacht zu haben. Der Haken springt
     // deshalb auf 0 statt auf das Ziel - und weil die 0 dort selbst schon
     // gruen ist, braucht das Wiederoeffnen das ausdrueckliche Loeschen.
-    const obergrenze = g.typ === "menge" && g.richtung === "hoechstens";
     const haken = document.createElement("button");
     haken.className = "haken" + (zustand === "erledigt" ? " an" : "");
     haken.textContent = "✓";
@@ -618,6 +819,18 @@ async function setzeTag(gewohnheit, datum, menge, loeschen = false) {
       gewohnheitId: gewohnheit.id, datum, menge, loeschen, heute: state.heute,
     }),
   });
+
+  // Kein Netz: merken und die Karte trotzdem umspringen lassen. Nur bei
+  // Status 0 - ein 400/403/500 ist eine Absage, die beim naechsten Versuch
+  // genauso ausfiele; die gehoert dem Nutzer gesagt, nicht in eine Schlange.
+  if (antwort.status === 0) {
+    merkeOffline(gewohnheit.id, datum, menge, loeschen);
+    setzeTagOertlich(gewohnheit, datum, menge, loeschen);
+    renderHeute();
+    renderVerlauf();
+    melde("Ohne Verbindung gemerkt — wird nachgetragen");
+    return true;
+  }
   if (!antwort.ok) { melde(antwort.daten.error || "Speichern fehlgeschlagen"); return false; }
 
   const d = antwort.daten;
@@ -1030,6 +1243,9 @@ async function beendeSitzung(durchgelaufen) {
 document.addEventListener("visibilitychange", async () => {
   if (document.hidden) return;
   document.title = "Fokus";
+  // Zurueck in der App ist der wahrscheinlichste Moment, in dem wieder Netz
+  // da ist - das "online"-Ereignis kommt nicht in jedem Browser zuverlaessig.
+  await liefereNach();
   if (heuteStr() !== state.heute) { await ladeGewohnheiten(); renderHeute(); renderVerlauf(); }
   await ladeFokus();
   renderFokus();
@@ -1214,12 +1430,14 @@ function oeffneTagDialog(gewohnheit, datum) {
   $("tagLoeschen").hidden = !(istMenge && gewohnheit.richtung === "hoechstens" && tag);
 
   $("tagPopup").hidden = false;
-  if (istMenge) {
-    $("tagMenge").focus();
-    $("tagMenge").select();
-  } else {
+
+  // Auf das Zahlenfeld kommt bewusst KEIN focus(): auf dem Handy schoebe sich
+  // die Tastatur ueber den halben Dialog, obwohl -/+ direkt daneben stehen.
+  // Gleiche Ueberlegung wie im Bearbeiten-Dialog.
+  if (!istMenge) {
     // Abhaken statt Zahl eintippen: die Wahl spiegelt den aktuellen Stand,
-    // ein Klick auf die andere Seite reicht zum Umschalten.
+    // ein Klick auf die andere Seite reicht zum Umschalten. Der Fokus stoert
+    // hier nicht - es sind Knoepfe, keine Tastatur.
     const erledigt = wert >= 1 ? "1" : "0";
     for (const knopf of $("tagStatus").querySelectorAll("button")) {
       knopf.setAttribute("aria-pressed", String(knopf.dataset.wert === erledigt));
@@ -1431,6 +1649,7 @@ $("einAbmelden").onclick = async () => {
     "Abmelden");
   if (!ok) return;
   await api("/api/auth/logout", { method: "POST" });
+  vergissStand();
   location.reload();
 };
 
