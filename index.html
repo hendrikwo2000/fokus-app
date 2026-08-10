@@ -52,7 +52,19 @@
 
 <!-- ---------- Heute ---------- -->
 <section class="ansicht" id="ansichtHeute" hidden>
+  <!-- Wie weit ist der Tag? Ohne diese Zeile muss man die ganze Liste
+       durchscrollen und die gruenen Raender zaehlen, um das zu wissen. -->
+  <div class="tages-bilanz" id="tagesBilanz" hidden>
+    <span id="tagesBilanzText"></span>
+    <div class="balken"><i id="tagesBilanzBalken" style="width:0%"></i></div>
+  </div>
+
   <div class="gew-liste" id="heuteListe"></div>
+
+  <!-- "X Mal die Woche" verschwindet aus der Liste, sobald das Wochenziel
+       steht. Ohne diese Zeile sieht das aus, als waere die Gewohnheit weg. -->
+  <p class="wochen-fertig" id="wochenFertig" hidden></p>
+
   <div style="margin-top:14px; text-align:center;">
     <button class="btn" id="neueGewohnheitBtn">＋ Gewohnheit</button>
   </div>
@@ -84,7 +96,7 @@
       <span id="kalLegendeGeplant" hidden><i class="kal-nicht-geplant-swatch"></i>nicht geplant</span>
     </div>
     <p class="hinweis" style="text-align:center; margin-top:12px;">
-      Tippe auf einen Tag, um ihn nachzutragen.
+      Tippe auf einen Tag, um ihn nachzutragen. Wischen wechselt den Monat.
     </p>
   </div>
 

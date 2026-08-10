@@ -609,6 +609,21 @@ function istObergrenze(gewohnheit) {
   return gewohnheit.typ === "menge" && gewohnheit.richtung === "hoechstens";
 }
 
+/**
+ * Menge und Ziel als Text.
+ *
+ * Bei einer Obergrenze ausdruecklich anders formuliert: "45 / 30 Min" und
+ * "50 / 60" sahen gleich aus, obwohl das eine ein erreichtes Ziel und das
+ * andere eine gerissene Grenze ist. Unterschieden hat sie nur die Randfarbe -
+ * zu wenig, wenn beide Karten untereinander stehen.
+ */
+function mengeText(gewohnheit, menge, ziel) {
+  const einheit = gewohnheit.einheit ? ` ${gewohnheit.einheit}` : "";
+  return istObergrenze(gewohnheit)
+    ? `${menge} von höchstens ${ziel}${einheit}`
+    : `${menge} / ${ziel}${einheit}`;
+}
+
 // Ob ein Datum zum Rhythmus einer Gewohnheit gehoert. Bei 'taeglich' und
 // 'x_pro_woche' ist jeder Tag geplant - der Unterschied zwischen den beiden
 // zeigt sich erst im Wochenziel, nicht am einzelnen Tag.
@@ -694,12 +709,50 @@ function aktualisiereBadge() {
   else navigator.clearAppBadge().catch(() => {});
 }
 
+/**
+ * Die beiden Zeilen um die Liste herum: oben, wie weit der Tag ist, unten,
+ * was diese Woche schon steht und deshalb gar nicht mehr auftaucht.
+ *
+ * Beide werden auch dann gesetzt, wenn die Liste leer ist - genau dann ist die
+ * untere am wichtigsten, weil "Heute ist keine Gewohnheit dran" sonst der
+ * einzige Hinweis waere.
+ */
+function renderTagesbilanz(aktive) {
+  const bilanz = $("tagesBilanz");
+  const erledigt = aktive.filter(g => zustandVon(g, state.heute) === "erledigt").length;
+  const fertig = aktive.length > 0 && erledigt === aktive.length;
+
+  bilanz.hidden = !aktive.length;
+  bilanz.classList.toggle("fertig", fertig);
+  $("tagesBilanzText").textContent = fertig
+    ? "Alles erledigt"
+    : `${erledigt} von ${aktive.length} erledigt`;
+  $("tagesBilanzBalken").style.width =
+    aktive.length ? `${Math.round(erledigt / aktive.length * 100)}%` : "0%";
+}
+
+function renderWochenFertig(alleAktiven) {
+  const zeile = $("wochenFertig");
+  // Nur der eine Grund, aus dem eine Gewohnheit heute lautlos fehlt: das
+  // Wochenziel steht schon. Alles andere (falscher Wochentag, archiviert) ist
+  // entweder erwartbar oder hat seinen eigenen Ort.
+  const fertig = alleAktiven.filter(g =>
+    g.rhythmus === "x_pro_woche" && !istObergrenze(g) && !istHeuteDran(g));
+  zeile.hidden = !fertig.length;
+  if (fertig.length) {
+    zeile.textContent = `Diese Woche schon geschafft: ${fertig.map(g => g.name).join(", ")}`;
+  }
+}
+
 function renderHeute() {
   const liste = $("heuteListe");
   liste.replaceChildren();
 
   const alleAktiven = state.gewohnheiten.filter(g => !g.archiviert);
   const aktive = alleAktiven.filter(istHeuteDran);
+  renderTagesbilanz(aktive);
+  renderWochenFertig(alleAktiven);
+
   if (!aktive.length) {
     const p = document.createElement("p");
     p.className = "leer-hinweis";
@@ -724,7 +777,9 @@ function renderHeute() {
     const obergrenze = istObergrenze(g);
 
     const karte = document.createElement("div");
-    karte.className = `gew ${zustand}`;
+    // mit-menge steuert den Umbruch auf schmalen Bildschirmen (style.css):
+    // nur diese Karten tragen Minus/Zahl/Plus und brauchen die zweite Zeile.
+    karte.className = `gew ${zustand}` + (g.typ === "menge" ? " mit-menge" : "");
 
     // Bearbeiten sitzt auf Name+Zeile, nicht auf einem eigenen Knopf - der
     // waere in der Zeile nur ein weiteres Ziel, das man beim Abhaken
@@ -746,7 +801,7 @@ function renderHeute() {
 
     if (g.typ === "menge") {
       const text = document.createElement("span");
-      text.textContent = `${menge} / ${ziel}` + (g.einheit ? ` ${g.einheit}` : "");
+      text.textContent = mengeText(g, menge, ziel);
       zeile.appendChild(text);
     }
 
@@ -991,7 +1046,7 @@ function renderTagListe() {
     const text = document.createElement("span");
     if (g.typ === "menge") {
       const ziel = tag ? tag.ziel : g.zielmenge;
-      text.textContent = `${tag ? tag.menge : 0} / ${ziel}` + (g.einheit ? ` ${g.einheit}` : "");
+      text.textContent = mengeText(g, tag ? tag.menge : 0, ziel);
     } else {
       text.textContent = vorAnlegen ? "" : (zustand === "erledigt" ? "erledigt" : "offen");
     }
@@ -1160,7 +1215,9 @@ function renderKalender() {
         : "");
 
     if (zukunft || !geplant) zelle.disabled = true;
-    else zelle.onclick = () => oeffneTagDialog(gewohnheit, d);
+    // Nach einer Wischgeste kommt noch ein click auf der Zelle unter dem
+    // Finger - der soll den Tag-Dialog nicht aufreissen.
+    else zelle.onclick = () => { if (!gewischt) oeffneTagDialog(gewohnheit, d); };
 
     kal.appendChild(zelle);
   }
@@ -1168,8 +1225,57 @@ function renderKalender() {
   $("kalLegendeGeplant").hidden = !irgendeinNichtGeplant;
 }
 
-$("kalZurueck").onclick = () => { verlauf.monat = monatPlus(verlauf.monat, -1); renderKalender(); };
-$("kalVor").onclick = () => { verlauf.monat = monatPlus(verlauf.monat, 1); renderKalender(); };
+/**
+ * Einen Monat weiter oder zurueck - der eine Weg, den Knoepfe wie Wischgeste
+ * benutzen. Die Grenzen stehen hier und nicht nur als `disabled` an den
+ * Knoepfen: eine Wischgeste kann nicht deaktiviert werden.
+ */
+function blaettereMonat(schritte) {
+  const ziel = monatPlus(verlauf.monat, schritte);
+  if (ziel > state.heute.slice(0, 7)) return;
+  if (ziel < state.historieAb.slice(0, 7)) return;
+  verlauf.monat = ziel;
+  renderKalender();
+}
+
+$("kalZurueck").onclick = () => blaettereMonat(-1);
+$("kalVor").onclick = () => blaettereMonat(1);
+
+/**
+ * Wischen wechselt den Monat.
+ *
+ * Auf dem Handy ist das der natuerliche Griff, und die beiden Pfeile sitzen
+ * oben in der Mitte - weit weg vom Daumen, der gerade noch einen Tag
+ * angetippt hat.
+ *
+ * Zwei Dinge, die sonst schieflaufen: Ein Wisch endet mit einem `click` auf
+ * der Zelle, unter der der Finger zufaellig losgelaufen ist - deshalb merkt
+ * `gewischt` das kurz und der Zellen-Handler steigt aus. Und ein senkrechter
+ * Wisch ist das Scrollen der Seite, kein Blaettern: er muss deutlich
+ * waagerechter sein als hoch, sonst bleibt er unbeachtet.
+ */
+const WISCH_MINDEST = 50;   // px, darunter ist es ein Tipp mit unruhiger Hand
+let wischStart = null;
+let gewischt = false;
+
+$("kalender").addEventListener("touchstart", (e) => {
+  wischStart = e.touches.length === 1
+    ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    : null;
+}, { passive: true });
+
+$("kalender").addEventListener("touchend", (e) => {
+  if (!wischStart) return;
+  const ende = e.changedTouches[0];
+  const dx = ende.clientX - wischStart.x;
+  const dy = ende.clientY - wischStart.y;
+  wischStart = null;
+  if (Math.abs(dx) < WISCH_MINDEST || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  gewischt = true;
+  setTimeout(() => { gewischt = false; }, 400);
+  // Nach links wischen heisst vorwaerts, wie beim Blaettern in allem anderen.
+  blaettereMonat(dx < 0 ? 1 : -1);
+}, { passive: true });
 
 /* ------------------------------------------------------------ Statistik */
 

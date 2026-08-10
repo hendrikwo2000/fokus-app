@@ -8,7 +8,13 @@
   --col-bg: #ebedf2;
   --row: #ffffff;
   --text: #1f2430;
-  --muted: #828a9c;
+  /* Frueher #828a9c. Das kam auf Weiss nur auf 3,46:1, auf dem Seitengrund
+     3,17:1 und bei den nicht gewaehlten Reitern sogar 2,96:1 - WCAG AA
+     verlangt 4,5:1 fuer normalen Text, und in der Sonne merkt man den
+     Unterschied auch ohne Messgeraet. Der jetzige Wert liegt gegen alle drei
+     Untergruende (--row, --bg, --col-bg) darueber. Im Dunkelmodus war der
+     Kontrast schon in Ordnung, der Wert dort bleibt. */
+  --muted: #616978;
   --line: #e3e6ee;
   --accent: #4f63d2;
   --accent-soft: #eef1fc;
@@ -147,6 +153,27 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 /* ---------- Tagesansicht ---------- */
 .gew-liste { display: flex; flex-direction: column; gap: 9px; }
 
+/* Wie weit ist der Tag - eine Zeile ueber der Liste, damit man dafuer nicht
+   scrollen muss. */
+.tages-bilanz {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 12px; padding: 0 2px;
+  font-size: 13px; color: var(--muted);
+}
+.tages-bilanz[hidden] { display: none; }
+.tages-bilanz > span { flex: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tages-bilanz .balken { flex: 1; }
+.tages-bilanz.fertig { color: var(--green); font-weight: 600; }
+.tages-bilanz.fertig .balken > i { background: var(--green); }
+
+/* Was diese Woche schon steht und deshalb nicht mehr in der Liste auftaucht
+   (Rhythmus 'x_pro_woche', siehe istHeuteDran in app.js). */
+.wochen-fertig {
+  margin: 12px 0 0; padding: 0 2px;
+  text-align: center; font-size: 12.5px; color: var(--muted);
+}
+.wochen-fertig[hidden] { display: none; }
+
 .gew {
   background: var(--row);
   border: 1px solid var(--line);
@@ -246,6 +273,21 @@ button.gew:hover { background: var(--hover); }
 .menge-plus[hidden], .menge-minus[hidden] { display: none; }
 .menge-plus:hover, .menge-minus:hover { border-color: var(--accent); background: var(--accent-soft); }
 
+/* Auf schmalen Bildschirmen bekommt der Text eine eigene Zeile.
+   Minus/Zahl/Plus (140 px) und der Haken (44 px) schrumpfen nicht mit - auf
+   einem 360-px-Handy blieben fuer Name, Fortschritt und Balken sonst 87 px
+   uebrig, und ein Name wie "Instagram-Minuten" brach zeichenweise um. Die
+   Karte wird dadurch eine Zeile hoeher, aber alle Karten werden gleich hoch,
+   und der Name steht wieder in einer Zeile.
+   Nur Karten mit Mengeneingabe: bei den reinen Abhaken-Karten reicht der
+   Platz auch schmal, die Klasse setzt renderHeute() in app.js. */
+@media (max-width: 420px) {
+  .gew.mit-menge { flex-wrap: wrap; row-gap: 12px; }
+  .gew.mit-menge > .gew-haupt { flex-basis: 100%; }
+  /* Haken ans Zeilenende, damit er dort sitzt, wo er auch sonst sitzt. */
+  .gew.mit-menge > .haken { margin-left: auto; }
+}
+
 .leer-hinweis {
   text-align: center;
   color: var(--muted);
@@ -279,6 +321,15 @@ button.gew:hover { background: var(--hover); }
   margin: 4px 0 14px;
 }
 .kal-monat { font-size: 15px; font-weight: 700; min-width: 150px; text-align: center; }
+/* Die am haeufigsten getippten Knoepfe der Ansicht - vorher 27 x 32 px und
+   damit die einzigen unter dem 44er-Mass, das Haken und Kalenderzellen schon
+   einhalten. Auf dem Handy blaettert man ohnehin lieber mit Wischen
+   (siehe app.js), aber treffen muss man sie trotzdem koennen. */
+.kal-kopf .btn.icon-only {
+  width: 44px; height: 44px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
 
 /* Kopfzeile (Mo-So) und Tageszellen sind EIN Grid, nicht zwei - so bleiben
    die Spalten garantiert bündig, ohne zwei Layouts synchron halten zu muessen. */
