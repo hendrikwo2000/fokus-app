@@ -324,12 +324,23 @@ button.gew:hover { background: var(--hover); }
    verwechseln mit "offen", das ja ein verpasster Tag waere. */
 .kal-zelle.nicht-geplant { background: transparent; color: var(--muted); opacity: .4; cursor: default; }
 .kal-zelle.nicht-geplant:hover { transform: none; }
+/* Tage, an denen es die Gewohnheit noch gar nicht gab. Gedaempft wie "nicht
+   geplant", denn ein verpasster Tag ist es nicht - anklickbar bleibt er
+   trotzdem, weil Nachtragen ausdruecklich weiter zurueckreichen darf als das
+   Anlegen (siehe statistik.js, "Ausnahme"). */
+.kal-zelle.vor-anlegen { background: transparent; color: var(--muted); opacity: .45; }
 
 .legende {
   display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
   margin-top: 16px; font-size: 12px; color: var(--muted);
 }
 .legende span { display: flex; align-items: center; gap: 5px; }
+/* Ohne diese Zeile gewinnt "display: flex" oben gegen das hidden-Attribut
+   (Typ+Klasse schlaegt das eingebaute [hidden] des Browsers) - die Legende
+   zeigte "ueberschritten" und "nicht geplant" auch dort, wo es beides gar
+   nicht geben kann. Vierter Fund derselben Familie, siehe .ein-abschnitt
+   und .switch weiter unten. */
+.legende span[hidden] { display: none; }
 .legende i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
 .kal-nicht-geplant-swatch { border: 1px dashed var(--muted); background: transparent !important; }
 

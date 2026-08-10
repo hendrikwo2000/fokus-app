@@ -10,6 +10,10 @@
 
 const WOCHENTAGE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
+// Spiegel von MAX_MENGE in functions/_lib/tag.js. Hier nur, damit die Felder
+// gar nicht erst mehr annehmen - verbindlich prueft der Server.
+const MAX_MENGE = 99999;
+
 const state = {
   gewohnheiten: [],
   logs: {},        // { gewohnheitId: { "2026-08-07": {menge, ziel, status} } }
@@ -64,6 +68,14 @@ function tagPlus(datum, n) {
 function formatDatum(iso) {
   const [j, m, t] = iso.split("-");
   return `${t}.${m}.${j}`;
+}
+
+// Zahl mit passender Einheit: "1 Tag", "2 Tage", "1 Woche", "3 Wochen".
+// Uebergeben wird die Mehrzahl - sie ist die haeufigere Form und steht so
+// auch in der Antwort von statistik.js.
+const EINZAHL = { Tage: "Tag", Wochen: "Woche" };
+function mitEinheit(zahl, mehrzahl) {
+  return `${zahl} ${zahl === 1 ? (EINZAHL[mehrzahl] || mehrzahl) : mehrzahl}`;
 }
 
 function wochentagVon(iso) {
@@ -747,7 +759,12 @@ function renderHeute() {
     const straehne = state.straehnen[g.id] || 0;
     const st = document.createElement("span");
     st.className = "straehne" + (straehne > 0 ? " aktiv" : "");
-    st.textContent = straehne > 0 ? `🔥 ${straehne} Tage` : "keine Flamme";
+    // Bei 'x_pro_woche' zaehlt straehneXProWoche() in functions/_lib/tag.js
+    // ganze WOCHEN, nicht Tage - die Zahl braucht deshalb die passende
+    // Einheit, sonst steht bei einer Woche "1 Tage" auf der Karte.
+    st.textContent = straehne > 0
+      ? `🔥 ${mitEinheit(straehne, g.rhythmus === "x_pro_woche" ? "Wochen" : "Tage")}`
+      : "keine Flamme";
     zeile.appendChild(st);
 
     // Offline abgehakt und noch nicht beim Server. Die Karte zeigt trotzdem
@@ -789,6 +806,7 @@ function renderHeute() {
       const eingabe = document.createElement("input");
       eingabe.type = "number";
       eingabe.min = "0";
+      eingabe.max = String(MAX_MENGE);
       eingabe.step = "1";
       eingabe.value = String(menge);
       eingabe.setAttribute("aria-label", `${g.name}: Menge für heute`);
@@ -888,7 +906,8 @@ async function setzeTag(gewohnheit, datum, menge, loeschen = false) {
   // Nur melden, wenn die Straehne durch einen NACHGETRAGENEN Tag gewachsen
   // ist - beim normalen Abhaken von heute sieht man die Zahl ohnehin.
   if (datum !== state.heute && d.straehne > vorher) {
-    melde(`${formatDatum(datum)} nachgetragen — Flamme jetzt ${d.straehne} Tage`);
+    const einheit = gewohnheit.rhythmus === "x_pro_woche" ? "Wochen" : "Tage";
+    melde(`${formatDatum(datum)} nachgetragen — Flamme jetzt ${mitEinheit(d.straehne, einheit)}`);
   }
   return true;
 }
@@ -962,6 +981,11 @@ function renderTagListe() {
     name.textContent = g.name;
     haupt.appendChild(name);
 
+    // Wie im Kalender: an einem Tag vor dem Anlegen ist nichts versaeumt
+    // worden. Eintragen bleibt trotzdem moeglich, deshalb nur der Zusatz und
+    // keine gesperrte Karte.
+    const vorAnlegen = !tag && !!g.angelegtAm && verlauf.tag < g.angelegtAm;
+
     const zeile = document.createElement("div");
     zeile.className = "gew-zeile";
     const text = document.createElement("span");
@@ -969,9 +993,14 @@ function renderTagListe() {
       const ziel = tag ? tag.ziel : g.zielmenge;
       text.textContent = `${tag ? tag.menge : 0} / ${ziel}` + (g.einheit ? ` ${g.einheit}` : "");
     } else {
-      text.textContent = zustand === "erledigt" ? "erledigt" : "offen";
+      text.textContent = vorAnlegen ? "" : (zustand === "erledigt" ? "erledigt" : "offen");
     }
-    zeile.appendChild(text);
+    if (text.textContent) zeile.appendChild(text);
+    if (vorAnlegen) {
+      const hinweis = document.createElement("span");
+      hinweis.textContent = "damals noch nicht angelegt";
+      zeile.appendChild(hinweis);
+    }
     // Ein stiller Tag einer Obergrenze ist gruen, ohne dass etwas eingetragen
     // waere. Ohne diesen Zusatz saehe er aus wie ein bestaetigter Tag.
     if (!tag && zustand === "erledigt" && stillerTagZaehlt(g, verlauf.tag)) {
@@ -1090,6 +1119,11 @@ function renderKalender() {
     const geplant = istGeplant(gewohnheit, d);
     const tag = tagVon(gewohnheit.id, d);
     if (!geplant) irgendeinNichtGeplant = true;
+    // Tage, an denen es die Gewohnheit noch gar nicht gab. Ohne diese
+    // Unterscheidung sahen sie aus wie verpasste Tage, obwohl die Statistik
+    // sie ausdruecklich nicht mitzaehlt. Ein nachgetragener Eintrag hebt das
+    // auf - der ist echt und soll auch so aussehen.
+    const vorAnlegen = !tag && !!gewohnheit.angelegtAm && d < gewohnheit.angelegtAm;
 
     const zelle = document.createElement("button");
     zelle.type = "button";
@@ -1097,7 +1131,7 @@ function renderKalender() {
     // ohne Eintrag gruen. Ein grauer Kalender unter einer laufenden Flamme
     // saehe aus, als stimme eins von beidem nicht.
     zelle.className = "kal-zelle "
-      + (!geplant ? "nicht-geplant" : zustandVon(gewohnheit, d))
+      + (!geplant ? "nicht-geplant" : vorAnlegen ? "vor-anlegen" : zustandVon(gewohnheit, d))
       + (d === state.heute ? " heute" : "")
       + (zukunft ? " zukunft" : "");
     const tagZahl = document.createElement("span");
@@ -1107,7 +1141,9 @@ function renderKalender() {
 
     // Menge/Ziel direkt in der Zelle, nicht nur im Tooltip - das damalige
     // Ziel (tag.ziel), nicht das aktuelle, siehe ziel_damals in tag.js.
-    if (geplant && gewohnheit.typ === "menge") {
+    // Nicht in der Zukunft und nicht vor dem Anlegen: dort waere "0/60" keine
+    // Aussage, sondern nur eine Null, die nach Versaeumnis aussieht.
+    if (geplant && gewohnheit.typ === "menge" && !zukunft && !vorAnlegen) {
       const menge = document.createElement("span");
       menge.className = "kal-menge";
       const ziel = tag ? tag.ziel : gewohnheit.zielmenge;
@@ -1117,6 +1153,7 @@ function renderKalender() {
 
     zelle.title = `${wochentagVon(d)}, ${formatDatum(d)}`
       + (!geplant ? " — nicht geplant"
+        : vorAnlegen ? " — davor gab es die Gewohnheit noch nicht"
         : tag ? `: ${tag.menge}${gewohnheit.typ === "menge" ? " / " + tag.ziel + (gewohnheit.einheit ? " " + gewohnheit.einheit : "") : ""}`
         // Angenommen, nicht bestaetigt - der Unterschied soll erkennbar sein.
         : stillerTagZaehlt(gewohnheit, d) ? " — nichts eingetragen, also im Rahmen"
@@ -1188,7 +1225,8 @@ async function renderStatistik() {
     }
 
     const quote = Math.round((g.erledigt / g.geplant) * 100);
-    text.textContent = `${g.erledigt} von ${g.geplant} ${g.einheit} (${quote} %)`;
+    // Die Einheit gehoert zum Nenner: "0 von 1 Tag", "1 von 1 Woche".
+    text.textContent = `${g.erledigt} von ${mitEinheit(g.geplant, g.einheit)} (${quote} %)`;
     zeile.appendChild(text);
     haupt.appendChild(zeile);
 
@@ -1345,7 +1383,11 @@ function piep() {
 }
 
 function meldeFertig(minuten) {
-  document.title = "✓ Fertig — Fokus";
+  // Der Titel ist der Weg zu jemandem, der gerade woanders ist. Wer die App
+  // vor sich hat, sieht ohnehin Snackbar und Timer - dort waere er nur eine
+  // Markierung, die bis zum naechsten Tabwechsel stehen bleibt, weil sie nur
+  // in visibilitychange zurueckgesetzt wird.
+  if (document.hidden) document.title = "✓ Fertig — Fokus";
   piep();
   // benachrichtigungenAn ist der App-eigene An/Aus-Zustand (siehe
   // aktualisierePushSchalter()) - Notification.permission allein reicht
@@ -1360,8 +1402,39 @@ function meldeFertig(minuten) {
   melde(`Sitzung fertig — ${minuten} Minuten`);
 }
 
+/**
+ * Ist inzwischen ein neuer Tag angebrochen? Dann alles neu holen.
+ *
+ * `state.heute` wird beim Laden einmal gesetzt und steckt danach in jedem
+ * Schreibvorgang (setzeTag). Bleibt die App ueber Mitternacht offen - am
+ * Rechner der Normalfall, dort feuert kein visibilitychange -, zeigt die
+ * Tagesansicht weiter den Rhythmus von gestern, und ein Haken landet auf dem
+ * gestrigen Datum. Der Server nimmt das sogar an: pruefeHeute() laesst einen
+ * Tag Spielraum, damit jede Zeitzone durchgeht.
+ *
+ * Der Vergleich kostet nichts und laeuft deshalb im Sekundentakt mit, statt
+ * einen eigenen Wecker auf Mitternacht zu stellen (der bei Standby oder
+ * Zeitumstellung ohnehin danebenlaege).
+ */
+let tageswechselLaeuft = false;
+async function pruefeTageswechsel() {
+  if (tageswechselLaeuft || heuteStr() === state.heute) return;
+  tageswechselLaeuft = true;
+  try {
+    await ladeGewohnheiten();
+    renderHeute();
+    renderVerlauf();
+    if (aktiveAnsicht === "statistik") renderStatistik();
+  } finally {
+    tageswechselLaeuft = false;
+  }
+}
+
 // Ein Takt pro Sekunde. Er zeichnet nur; gerechnet wird aus dem Startzeitpunkt.
 setInterval(() => {
+  // Vor dem Ausstieg unten: der Tageswechsel betrifft jede Ansicht, nicht nur
+  // die des Timers.
+  pruefeTageswechsel();
   if (aktiveAnsicht !== "fokus" && !fokus.offen) return;
   if (fokus.offen && !fokus.offen.pausiert && !fokus.gemeldet) {
     if (verstrichen() >= fokus.offen.geplanteMin * 60) {
@@ -1374,6 +1447,8 @@ setInterval(() => {
 }, 1000);
 
 $("startBtn").onclick = async () => {
+  // Eine neue Sitzung raeumt den Fertig-Hinweis der vorigen aus dem Titel.
+  document.title = "Fokus";
   // AudioContext hier anlegen: der Klick ist die Geste, die Browser fuer
   // Tonausgabe verlangen. Spaeter, beim Ablauf des Timers, gibt es keine mehr.
   try {
@@ -1410,7 +1485,10 @@ $("pauseBtn").onclick = async () => {
 $("stopBtn").onclick = async () => {
   const sek = verstrichen();
   if (sek >= 60) {
-    const min = Math.round(sek / 60);
+    // Dieselbe Deckelung wie in beendeSitzung() (functions/_lib/fokus.js):
+    // eine 45-Minuten-Sitzung kann keine 70 Minuten ins Log schreiben. Ohne
+    // sie nannte die Rueckfrage eine Zahl, die so nie irgendwo auftaucht.
+    const min = Math.min(Math.round(sek / 60), fokus.offen.geplanteMin);
     const ok = await frage("Sitzung beenden?",
       `${min} von ${fokus.offen.geplanteMin} Minuten sind gelaufen. `
       + "Sie landen so im Log und lassen sich danach nicht mehr ändern. "
@@ -1460,7 +1538,7 @@ document.addEventListener("visibilitychange", async () => {
   // Zurueck in der App ist der wahrscheinlichste Moment, in dem wieder Netz
   // da ist - das "online"-Ereignis kommt nicht in jedem Browser zuverlaessig.
   await liefereNach();
-  if (heuteStr() !== state.heute) { await ladeGewohnheiten(); renderHeute(); renderVerlauf(); }
+  await pruefeTageswechsel();
   await ladeFokus();
   renderFokus();
 });
@@ -1688,6 +1766,10 @@ $("tagSpeichern").onclick = async () => {
   const menge = Number($("tagMenge").value);
   if (!Number.isInteger(menge) || menge < 0) {
     $("tagMsg").textContent = "Ganze Zahl ab 0 eingeben.";
+    return;
+  }
+  if (menge > MAX_MENGE) {
+    $("tagMsg").textContent = `Höchstens ${MAX_MENGE} eingeben.`;
     return;
   }
   if (await setzeTag(tagGewohnheit, tagDatum, menge)) $("tagPopup").hidden = true;

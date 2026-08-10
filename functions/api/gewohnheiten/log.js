@@ -13,7 +13,7 @@
 import { json, liesJson } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
 import {
-  pruefeHeute, pruefeLogDatum, tagPlus, status, straehneFuer, ergaenzeStilleTage,
+  pruefeHeute, pruefeLogDatum, tagPlus, status, straehneFuer, ergaenzeStilleTage, MAX_MENGE,
 } from "../../_lib/tag.js";
 
 const LOG_TAGE = 730;
@@ -39,6 +39,11 @@ export async function onRequestPut({ request, env }) {
   const menge = Number(body?.menge);
   if (!Number.isInteger(menge) || menge < 0) {
     return json({ error: "Die Menge muss eine ganze Zahl ab 0 sein." }, 400);
+  }
+  // Deckel gegen Vertipper: eine Zahl mit acht Stellen sprengt das Zahlenfeld
+  // und die Kalenderzelle, ohne je etwas Wahres auszudruecken.
+  if (menge > MAX_MENGE) {
+    return json({ error: `Die Menge darf höchstens ${MAX_MENGE} sein.` }, 400);
   }
 
   // Ausdruecklich wieder auf "offen" stellen. Nur bei einer Obergrenze noetig:

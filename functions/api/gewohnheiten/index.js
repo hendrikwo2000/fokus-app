@@ -11,7 +11,7 @@
 import { json, liesJson } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
 import {
-  pruefeHeute, istDatum, tagPlus, status, straehneFuer, ergaenzeStilleTage,
+  pruefeHeute, istDatum, tagPlus, status, straehneFuer, ergaenzeStilleTage, MAX_MENGE,
 } from "../../_lib/tag.js";
 
 // Genug fuer ein Eigennutz-Werkzeug und ein Deckel gegen versehentliche
@@ -70,6 +70,11 @@ function pruefeFelder(body, typ, richtung) {
   const ziel = Number(body?.zielmenge);
   if (!Number.isInteger(ziel) || ziel < kleinstes) {
     return { meldung: `Die Zielmenge muss eine ganze Zahl ab ${kleinstes} sein.` };
+  }
+  // Nach oben derselbe Deckel wie fuer einen Tageseintrag (log.js) - ein Ziel,
+  // das keine Menge je erreichen kann, waere keins.
+  if (ziel > MAX_MENGE) {
+    return { meldung: `Die Zielmenge darf höchstens ${MAX_MENGE} sein.` };
   }
   // Einheit ist optional - nicht jede Zielmenge braucht eine Beschriftung.
   const einheit = String(body?.einheit || "").trim().slice(0, MAX_EINHEIT) || null;

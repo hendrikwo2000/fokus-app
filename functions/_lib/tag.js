@@ -19,6 +19,16 @@
 
 const DATUM_MUSTER = /^\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * Groesste erlaubte Menge - fuer einen Tageseintrag wie fuer eine Zielmenge.
+ *
+ * Keine inhaltliche Grenze, sondern ein Deckel gegen Vertipper: 1440 Minuten
+ * hat ein ganzer Tag, alles darueber ist ohnehin keine Menge mehr, die an
+ * einem Tag zusammenkommt. 99999 laesst reichlich Luft und passt noch ins
+ * Zahlenfeld der Tagesansicht, das 56 px breit ist.
+ */
+export const MAX_MENGE = 99999;
+
 export function istDatum(wert) {
   const s = String(wert || "");
   if (!DATUM_MUSTER.test(s)) return false;
