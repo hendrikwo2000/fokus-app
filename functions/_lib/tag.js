@@ -105,6 +105,12 @@ export function status(typ, menge, ziel, richtung = "mindestens") {
   return m > 0 ? "teilweise" : "offen";
 }
 
+// Eine Gewohnheit mit Obergrenze statt Soll. An mehreren Regeln beteiligt,
+// deshalb an einer Stelle - Gegenstueck: istObergrenze() in app.js.
+export function istObergrenze(gewohnheit) {
+  return gewohnheit.typ === "menge" && gewohnheit.richtung === "hoechstens";
+}
+
 /**
  * Zaehlt ein Tag OHNE Eintrag bei dieser Gewohnheit als erledigt?
  *
@@ -122,7 +128,7 @@ export function status(typ, menge, ziel, richtung = "mindestens") {
  * `angelegtAm` ist `gewohnheiten.created_at` (Datum reicht, Uhrzeit egal).
  */
 export function stillerTagZaehlt(gewohnheit, datum, heute) {
-  if (gewohnheit.typ !== "menge" || gewohnheit.richtung !== "hoechstens") return false;
+  if (!istObergrenze(gewohnheit)) return false;
   if (datum >= heute) return false;
   const angelegt = String(gewohnheit.created_at || "").slice(0, 10);
   return !angelegt || datum >= angelegt;
@@ -135,7 +141,7 @@ export function stillerTagZaehlt(gewohnheit, datum, heute) {
  * ueber der Grenze bleibt rot, er ist ja eingetragen.
  */
 export function ergaenzeStilleTage(gruene, gewohnheit, vorhandene, ab, heute) {
-  if (gewohnheit.typ !== "menge" || gewohnheit.richtung !== "hoechstens") return gruene;
+  if (!istObergrenze(gewohnheit)) return gruene;
   const vorhanden = vorhandene instanceof Set ? vorhandene : new Set(vorhandene);
   const angelegt = String(gewohnheit.created_at || "").slice(0, 10);
   let tag = angelegt > ab ? angelegt : ab;

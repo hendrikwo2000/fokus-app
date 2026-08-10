@@ -178,7 +178,7 @@ function statusVon(gewohnheit, menge, ziel) {
   const m = Number(menge) || 0;
   if (gewohnheit.typ === "binaer") return m >= 1 ? "erledigt" : "offen";
   const z = Number(ziel) || 0;
-  if (gewohnheit.richtung === "hoechstens") {
+  if (istObergrenze(gewohnheit)) {
     // Eine Grenze von 0 ist erlaubt und ab der ersten Einheit ueberschritten.
     return m > z ? "ueberschritten" : "erledigt";
   }
@@ -588,6 +588,12 @@ function tagVon(gewohnheitId, datum) {
   return (state.logs[gewohnheitId] || {})[datum] || null;
 }
 
+// Eine Gewohnheit mit Obergrenze statt Soll - Gegenstueck zu istObergrenze()
+// in functions/_lib/tag.js.
+function istObergrenze(gewohnheit) {
+  return gewohnheit.typ === "menge" && gewohnheit.richtung === "hoechstens";
+}
+
 // Ob ein Datum zum Rhythmus einer Gewohnheit gehoert. Bei 'taeglich' und
 // 'x_pro_woche' ist jeder Tag geplant - der Unterschied zwischen den beiden
 // zeigt sich erst im Wochenziel, nicht am einzelnen Tag.
@@ -603,7 +609,7 @@ function istGeplant(gewohnheit, datum) {
  * muss sie hier mit.
  */
 function stillerTagZaehlt(gewohnheit, datum) {
-  if (gewohnheit.typ !== "menge" || gewohnheit.richtung !== "hoechstens") return false;
+  if (!istObergrenze(gewohnheit)) return false;
   if (datum >= state.heute) return false;
   return !gewohnheit.angelegtAm || datum >= gewohnheit.angelegtAm;
 }
@@ -630,9 +636,17 @@ function erledigtDieseWoche(gewohnheit) {
 // Ob eine Gewohnheit heute ueberhaupt in der Liste erscheint. 'wochentage':
 // nur an geplanten Tagen. 'x_pro_woche': nur solange das Wochenziel noch
 // nicht erreicht ist - danach verschwindet sie fuer den Rest der Woche.
+//
+// AUSNAHME Obergrenze: die bleibt die ganze Woche stehen. "5 Mal die Woche
+// hoechstens 60 Min" heisst nicht, dass die Grenze ab dem fuenften Tag nicht
+// mehr gilt - waere die Karte weg, liesse sich ein Ausrutscher am sechsten Tag
+// gar nicht mehr eintragen. Das Wochenziel bleibt trotzdem die Messlatte fuer
+// Fortschrittszeile und Straehne.
 function istHeuteDran(gewohnheit) {
   if (gewohnheit.rhythmus === "wochentage") return istGeplant(gewohnheit, state.heute);
-  if (gewohnheit.rhythmus === "x_pro_woche") return erledigtDieseWoche(gewohnheit) < gewohnheit.wochenziel;
+  if (gewohnheit.rhythmus === "x_pro_woche" && !istObergrenze(gewohnheit)) {
+    return erledigtDieseWoche(gewohnheit) < gewohnheit.wochenziel;
+  }
   return true;
 }
 
@@ -692,7 +706,7 @@ function renderHeute() {
     const ziel = tag ? tag.ziel : g.zielmenge;
     // Obergrenze statt Soll: dreht die Bedeutung von "geschafft" um und damit
     // auch die des Balkens und des Hakens (beide weiter unten).
-    const obergrenze = g.typ === "menge" && g.richtung === "hoechstens";
+    const obergrenze = istObergrenze(g);
 
     const karte = document.createElement("div");
     karte.className = `gew ${zustand}`;

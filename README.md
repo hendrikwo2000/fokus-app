@@ -57,6 +57,12 @@ Drei Möglichkeiten, wie oft eine Gewohnheit dran ist:
   verschwindet die Gewohnheit für den Rest der Woche aus „Heute"; die Karte
   zeigt bis dahin den Fortschritt („3 von 4 diese Woche").
 
+**Ausnahme: eine Obergrenze bleibt die ganze Woche stehen.** „5 Mal die Woche
+höchstens 60 TV-Minuten" heißt nicht, dass die Grenze ab dem fünften Tag nicht
+mehr gilt — wäre die Karte weg, könntest du einen Ausrutscher am sechsten Tag
+gar nicht mehr eintragen. Das Wochenziel bleibt trotzdem die Messlatte für den
+Fortschritt und die Flamme.
+
 Bei festen Wochentagen zählt die Strähne (🔥) geplante Tage in Folge, Tage
 dazwischen unterbrechen sie nicht. Bei „X Mal die Woche" zählt sie erreichte
 Wochen in Folge.

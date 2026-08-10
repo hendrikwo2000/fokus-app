@@ -184,12 +184,24 @@ benutzen `ergaenzeStilleTage()`, die anderen `stillerTagZaehlt()` direkt.
 Im Client spiegelt `stillerTagZaehlt()`/`zustandVon()` in `app.js` dasselbe für
 Kalender und Wochenfortschritt.
 
-**Sichtbare Folgen, die man erwarten sollte:** Der Kalender einer Obergrenze
-ist ab dem Anlegetag durchgehend grün (der Tooltip unterscheidet „nichts
-eingetragen, also im Rahmen" von einem echten Eintrag), und bei
-`hoechstens` + `x_pro_woche` ist das Wochenziel spätestens gegen Wochenende von
-allein erreicht — die Gewohnheit verschwindet dann für den Rest der Woche aus
-„Heute".
+**Sichtbare Folge, die man erwarten sollte:** Der Kalender einer Obergrenze ist
+ab dem Anlegetag durchgehend grün — der Tooltip unterscheidet „nichts
+eingetragen, also im Rahmen" von einem echten Eintrag.
+
+### Eine Obergrenze verschwindet nie aus „Heute"
+
+`x_pro_woche` blendet eine Gewohnheit sonst aus, sobald das Wochenziel erreicht
+ist. Bei einer Obergrenze wäre das falsch: „5 Mal die Woche höchstens 60 Min"
+heißt nicht, dass die Grenze ab dem fünften Tag nicht mehr gilt — und ohne
+Karte ließe sich ein Ausrutscher am sechsten Tag gar nicht mehr eintragen. Seit
+der Regel oben erreichte so eine Gewohnheit ihr Wochenziel sogar von allein und
+war spätestens am Wochenende weg.
+
+`istHeuteDran()` (`app.js`) und `nochOffen()` (`push/pruefen.js`) fallen bei
+einer Obergrenze deshalb auf die Tagesprüfung durch, genau wie `taeglich`.
+Das Wochenziel bleibt die Messlatte für Fortschrittszeile und Strähne — nur
+nicht mehr dafür, ob die Karte erscheint. Praktische Folge: die Erinnerung
+kommt an jedem Tag, an dem noch nichts eingetragen ist, auch nach dem fünften.
 
 ### Die Statistik beginnt beim Anlegen
 

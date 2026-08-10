@@ -22,7 +22,7 @@
 
 import { json } from "../../_lib/antwort.js";
 import { sendeWebPush } from "../../_lib/webpush.js";
-import { status, montagVon, tagPlus, stillerTagZaehlt } from "../../_lib/tag.js";
+import { status, montagVon, tagPlus, stillerTagZaehlt, istObergrenze } from "../../_lib/tag.js";
 
 // "Heute" bewusst in der Zeitzone Europe/Berlin, nicht UTC - sonst faellt der
 // Tageswechsel je nach Sommer-/Winterzeit bis zu zwei Stunden falsch.
@@ -67,7 +67,10 @@ function erledigtDieseWoche(gewohnheit, tageDerGewohnheit, heute) {
 // in app.js) UND noch nicht erledigt.
 function nochOffen(gewohnheit, tageDerGewohnheit, heute) {
   if (gewohnheit.rhythmus === "wochentage" && !istGeplant(gewohnheit, heute)) return false;
-  if (gewohnheit.rhythmus === "x_pro_woche") {
+  // Eine Obergrenze ist mit dem erreichten Wochenziel NICHT erledigt: eine
+  // Grenze gilt an jedem Tag der Woche, auch am sechsten. Deshalb faellt sie
+  // hier durch auf die Tagespruefung unten, genau wie 'taeglich'.
+  if (gewohnheit.rhythmus === "x_pro_woche" && !istObergrenze(gewohnheit)) {
     return erledigtDieseWoche(gewohnheit, tageDerGewohnheit, heute) < gewohnheit.wochenziel;
   }
   const heutiger = tageDerGewohnheit[heute];
