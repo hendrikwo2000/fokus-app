@@ -21,7 +21,9 @@ const state = {
 // Welche Gewohnheit und welcher Monat im Kalender-Verlauf gerade zu sehen
 // sind. gewohnheitId faellt in renderVerlauf() auf die erste aktive
 // Gewohnheit zurueck, sobald sie leer ist oder ins Archiv/Nirwana zeigt.
-const verlauf = { gewohnheitId: null, monat: "" };
+// `modus` schaltet zwischen dem Monatskalender einer Gewohnheit und der Liste
+// aller Gewohnheiten eines Tages um; `tag` ist das Datum der zweiten Ansicht.
+const verlauf = { gewohnheitId: null, monat: "", modus: "gewohnheit", tag: "" };
 
 // Zeitraum der Statistik-Ansicht, in Tagen (7/30/90).
 const statistik = { tage: 30 };
@@ -576,6 +578,7 @@ async function start() {
   $("lock").classList.add("hidden");
   $("reiter").hidden = false;
   $("einstellungenBtn").hidden = false;
+  renderFokusGewohnheiten();
   zeigeAnsicht(aktiveAnsicht);
   // Was beim letzten Mal ohne Netz liegen geblieben ist, geht jetzt raus.
   liefereNach();
@@ -893,9 +896,107 @@ async function setzeTag(gewohnheit, datum, menge, loeschen = false) {
 /* ------------------------------------------------------------- Verlauf */
 /* Ein Monatskalender pro Gewohnheit, umschaltbar ueber kalWahl. Ersetzt das
    fruehere Raster (eine Zeile pro Gewohnheit, alle gleichzeitig) - bei mehr
-   als ein, zwei Gewohnheiten wurden die Zellen darin zu klein zum Treffen. */
+   als ein, zwei Gewohnheiten wurden die Zellen darin zu klein zum Treffen.
+
+   Dazu die Gegenrichtung: ein TAG mit allen Gewohnheiten. Der Kalender ist
+   richtig, wenn man eine Gewohnheit im Verlauf sehen will - war man ein paar
+   Tage nicht in der App, klickt man sich darin aber durch jede einzeln. */
 
 function renderVerlauf() {
+  const nachTag = verlauf.modus === "tag";
+  for (const knopf of $("verlaufModus").querySelectorAll("button")) {
+    knopf.setAttribute("aria-selected", String(knopf.dataset.modus === verlauf.modus));
+  }
+  $("verlaufGewohnheit").hidden = nachTag;
+  $("verlaufTag").hidden = !nachTag;
+  if (nachTag) renderTagListe();
+  else renderNachGewohnheit();
+}
+
+for (const knopf of $("verlaufModus").querySelectorAll("button")) {
+  knopf.onclick = () => { verlauf.modus = knopf.dataset.modus; renderVerlauf(); };
+}
+
+/**
+ * Ein Tag, alle an ihm faelligen Gewohnheiten. Nicht geplante Wochentage
+ * tauchen gar nicht erst auf - genauso wie in "Heute", und der Kalender dimmt
+ * sie aus demselben Grund.
+ */
+function renderTagListe() {
+  if (!verlauf.tag) verlauf.tag = state.heute;
+  if (verlauf.tag > state.heute) verlauf.tag = state.heute;
+
+  $("tagUeberschrift").textContent = verlauf.tag === state.heute
+    ? "Heute"
+    : `${wochentagVon(verlauf.tag)}, ${formatDatum(verlauf.tag)}`;
+  $("tagZurueck").disabled = verlauf.tag <= state.historieAb;
+  $("tagVor").disabled = verlauf.tag >= state.heute;
+
+  const liste = $("tagListe");
+  liste.replaceChildren();
+
+  const faellig = state.gewohnheiten.filter(g => !g.archiviert && istGeplant(g, verlauf.tag));
+  if (!faellig.length) {
+    const p = document.createElement("p");
+    p.className = "leer-hinweis";
+    p.textContent = "An diesem Tag ist keine Gewohnheit dran.";
+    liste.appendChild(p);
+    return;
+  }
+
+  for (const g of faellig) {
+    const tag = tagVon(g.id, verlauf.tag);
+    const zustand = zustandVon(g, verlauf.tag);
+
+    // Die ganze Karte ist der Knopf: hier gibt es genau eine Handlung, und ein
+    // eigener kleiner Knopf daneben waere auf dem Handy nur schwerer zu treffen.
+    const karte = document.createElement("button");
+    karte.type = "button";
+    karte.className = `gew ${zustand}`;
+
+    const haupt = document.createElement("div");
+    haupt.className = "gew-haupt";
+
+    const name = document.createElement("div");
+    name.className = "gew-name";
+    name.textContent = g.name;
+    haupt.appendChild(name);
+
+    const zeile = document.createElement("div");
+    zeile.className = "gew-zeile";
+    const text = document.createElement("span");
+    if (g.typ === "menge") {
+      const ziel = tag ? tag.ziel : g.zielmenge;
+      text.textContent = `${tag ? tag.menge : 0} / ${ziel}` + (g.einheit ? ` ${g.einheit}` : "");
+    } else {
+      text.textContent = zustand === "erledigt" ? "erledigt" : "offen";
+    }
+    zeile.appendChild(text);
+    // Ein stiller Tag einer Obergrenze ist gruen, ohne dass etwas eingetragen
+    // waere. Ohne diesen Zusatz saehe er aus wie ein bestaetigter Tag.
+    if (!tag && zustand === "erledigt" && stillerTagZaehlt(g, verlauf.tag)) {
+      const still = document.createElement("span");
+      still.textContent = "nichts eingetragen";
+      zeile.appendChild(still);
+    }
+    haupt.appendChild(zeile);
+
+    karte.appendChild(haupt);
+
+    const haken = document.createElement("span");
+    haken.className = "haken" + (zustand === "erledigt" ? " an" : "");
+    haken.textContent = zustand === "erledigt" ? "✓" : "";
+    karte.appendChild(haken);
+
+    karte.onclick = () => oeffneTagDialog(g, verlauf.tag);
+    liste.appendChild(karte);
+  }
+}
+
+$("tagZurueck").onclick = () => { verlauf.tag = tagPlus(verlauf.tag, -1); renderTagListe(); };
+$("tagVor").onclick = () => { verlauf.tag = tagPlus(verlauf.tag, 1); renderTagListe(); };
+
+function renderNachGewohnheit() {
   const aktive = state.gewohnheiten.filter(g => !g.archiviert);
   if (!aktive.length) {
     verlauf.gewohnheitId = null;
@@ -1128,8 +1229,43 @@ function alsUhr(sekunden) {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/**
+ * Die Auswahl "Zaehlt auf". Nur aktive Gewohnheiten, und keine Obergrenzen -
+ * Fokusminuten auf ein Limit zu buchen hiesse, sich fuers Arbeiten einen
+ * schlechteren Tag einzutragen. Der Server prueft dasselbe nochmal.
+ *
+ * Wird nicht im Sekundentakt neu gebaut, sondern nur, wenn sich der Bestand
+ * geaendert haben kann - sonst risse es dem Nutzer die Liste unter dem Finger weg.
+ */
+function renderFokusGewohnheiten() {
+  const wahl = $("fokusGewohnheit");
+  const vorher = wahl.value;
+  wahl.replaceChildren();
+
+  const leer = document.createElement("option");
+  leer.value = "";
+  leer.textContent = "nichts";
+  wahl.appendChild(leer);
+
+  for (const g of state.gewohnheiten) {
+    if (g.archiviert || istObergrenze(g)) continue;
+    const option = document.createElement("option");
+    option.value = g.id;
+    option.textContent = g.name;
+    wahl.appendChild(option);
+  }
+  // Die vorherige Wahl halten, solange es sie noch gibt.
+  wahl.value = [...wahl.options].some(o => o.value === vorher) ? vorher : "";
+}
+
 function renderFokus() {
   const laeuft = !!fokus.offen;
+
+  // Waehrend einer Sitzung gesperrt: die Buchung haengt an der Sitzung, ein
+  // Umstellen mittendrin waere eine stille Umbuchung. Dafuer zeigt die Auswahl
+  // dann, worauf die laufende Sitzung geht.
+  $("fokusGewohnheit").disabled = laeuft;
+  if (laeuft) $("fokusGewohnheit").value = fokus.offen.gewohnheitId || "";
   const geplantSek = (laeuft ? fokus.offen.geplanteMin : fokus.arbeitMin) * 60;
   const rest = laeuft ? geplantSek - verstrichen() : geplantSek;
 
@@ -1247,12 +1383,14 @@ $("startBtn").onclick = async () => {
 
   const antwort = await api("/api/fokus/start", {
     method: "POST",
-    body: JSON.stringify({ heute: heuteStr() }),
+    body: JSON.stringify({ heute: heuteStr(), gewohnheitId: $("fokusGewohnheit").value || null }),
   });
   if (!antwort.ok) { melde(antwort.daten.error || "Start fehlgeschlagen"); return; }
   if (antwort.daten.vorherBeendet) {
     const v = antwort.daten.vorherBeendet;
     melde(`Vorherige Sitzung mit ${v.echteMin} Min. abgeschlossen`);
+    // Die alte Sitzung kann auf eine Gewohnheit gebucht gewesen sein.
+    if (v.gutschrift) { await neuLaden(); meldeGutschrift(v.gutschrift); }
   }
   uebernimmSitzung(antwort.daten.offen);
   renderFokus();
@@ -1265,7 +1403,23 @@ $("pauseBtn").onclick = async () => {
   renderFokus();
 };
 
-$("stopBtn").onclick = () => beendeSitzung(false);
+// Stopp sitzt direkt neben Pause, und eine geloggte Sitzung laesst sich
+// nachtraeglich nicht mehr korrigieren - ein Fehlgriff bliebe fuer immer in der
+// Wochenstatistik. Unter einer Minute ist nichts zu verlieren, da faellt die
+// Rueckfrage weg: sie soll den Alltag nicht mit einem zweiten Tipp belasten.
+$("stopBtn").onclick = async () => {
+  const sek = verstrichen();
+  if (sek >= 60) {
+    const min = Math.round(sek / 60);
+    const ok = await frage("Sitzung beenden?",
+      `${min} von ${fokus.offen.geplanteMin} Minuten sind gelaufen. `
+      + "Sie landen so im Log und lassen sich danach nicht mehr ändern. "
+      + "Zum Unterbrechen gibt es „Pause“.",
+      "Beenden");
+    if (!ok) return;
+  }
+  beendeSitzung(false);
+};
 
 async function beendeSitzung(durchgelaufen) {
   const antwort = await api("/api/fokus/stop", { method: "POST" });
@@ -1273,10 +1427,29 @@ async function beendeSitzung(durchgelaufen) {
   const s = antwort.daten.sitzung;
   uebernimmSitzung(null);
   await ladeFokus();     // Statistik nachziehen
+  // War die Sitzung auf eine Gewohnheit gebucht, steht deren Tag jetzt anders
+  // in der Datenbank als im geladenen Bestand.
+  if (s && s.gutschrift) await neuLaden();
   renderFokus();
   if (!s) return;
   if (durchgelaufen) meldeFertig(s.echteMin);
   else melde(`Abgebrochen nach ${s.echteMin} von ${s.geplanteMin} Minuten`);
+  if (s.gutschrift) meldeGutschrift(s.gutschrift);
+}
+
+// Eigene Meldung nach der Fertig-Meldung: beide gleichzeitig gaeben nur eine zu
+// sehen (melde() ueberschreibt sich selbst), und die Gutschrift ist das, was
+// man nachher in der Tagesansicht wiederfinden soll.
+function meldeGutschrift(g) {
+  setTimeout(() => {
+    // Immer "Min", nie die Einheit der Gewohnheit: gutgeschrieben werden
+    // Fokusminuten. Steht die Gewohnheit in Glaesern oder Seiten, passt die
+    // Buchung inhaltlich nicht - dann soll die Meldung das auch zeigen, statt
+    // aus 25 Minuten stillschweigend "25 Glaeser" zu machen.
+    melde(g.typ === "binaer"
+      ? `„${g.name}“ abgehakt`
+      : `${g.gutgeschrieben} Min auf „${g.name}“ — jetzt ${g.menge}`);
+  }, 3400);
 }
 
 // Zurueck aus dem Hintergrund: Serverstand holen. Ein schlafender Tab bekommt
@@ -1578,7 +1751,66 @@ function aktualisiereEinSubtexte() {
   const archiviert = state.gewohnheiten.filter(g => g.archiviert).length;
   $("subArchiv").textContent = archiviert ? `${archiviert} archiviert` : "";
 
+  const aktive = state.gewohnheiten.filter(g => !g.archiviert).length;
+  $("subReihenfolge").textContent = aktive === 1 ? "1 Gewohnheit" : `${aktive} Gewohnheiten`;
+
   aktualisiereTodoLink();
+}
+
+/**
+ * Reihenfolge der Tagesansicht. Hoch/Runter statt Ziehen: Ziehen braucht auf
+ * dem Handy eigene Pointer-Behandlung und kollidiert mit dem Scrollen des
+ * Dialogs - zwei Pfeile treffen immer.
+ *
+ * Geschickt wird die vollstaendige Liste, nicht "tausche zwei" (siehe
+ * functions/api/gewohnheiten/reihenfolge.js). Die archivierten haengen hinten
+ * dran, damit die Positionen luecken- und kollisionsfrei bleiben, falls eine
+ * davon spaeter zurueckgeholt wird.
+ */
+function renderReihenfolge() {
+  const liste = $("reihenfolgeListe");
+  liste.replaceChildren();
+  const aktive = state.gewohnheiten.filter(g => !g.archiviert);
+  $("reihenfolgeLeer").hidden = aktive.length > 0;
+
+  aktive.forEach((g, i) => {
+    const zeile = document.createElement("div");
+    zeile.className = "archiv-zeile";
+
+    const name = document.createElement("span");
+    name.textContent = g.name;
+    zeile.appendChild(name);
+
+    for (const [richtung, zeichen, titel] of [[-1, "↑", "nach oben"], [1, "↓", "nach unten"]]) {
+      const knopf = document.createElement("button");
+      knopf.className = "btn klein";
+      knopf.textContent = zeichen;
+      knopf.title = `${g.name} ${titel}`;
+      knopf.setAttribute("aria-label", `${g.name} ${titel}`);
+      knopf.disabled = richtung < 0 ? i === 0 : i === aktive.length - 1;
+      knopf.onclick = () => verschiebeGewohnheit(i, i + richtung);
+      zeile.appendChild(knopf);
+    }
+
+    liste.appendChild(zeile);
+  });
+  aktualisiereEinSubtexte();
+}
+
+async function verschiebeGewohnheit(von, nach) {
+  const aktive = state.gewohnheiten.filter(g => !g.archiviert);
+  if (nach < 0 || nach >= aktive.length) return;
+  [aktive[von], aktive[nach]] = [aktive[nach], aktive[von]];
+
+  const ids = [...aktive, ...state.gewohnheiten.filter(g => g.archiviert)].map(g => g.id);
+  const antwort = await api("/api/gewohnheiten/reihenfolge", {
+    method: "PUT",
+    body: JSON.stringify({ ids }),
+  });
+  if (!antwort.ok) { melde(antwort.daten.error || "Sortieren fehlgeschlagen"); return; }
+
+  await neuLaden();
+  renderReihenfolge();
 }
 
 function renderArchiv() {
@@ -1605,6 +1837,7 @@ function renderArchiv() {
       });
       await neuLaden();
       renderArchiv();
+      renderReihenfolge();   // eine Gewohnheit mehr, die sich sortieren laesst
       melde("Wieder aktiv");
     };
     zeile.appendChild(zurueck);
@@ -1671,6 +1904,7 @@ $("einstellungenBtn").onclick = () => {
   aktualisiereDauerAnzeige();
   $("einKontoName").textContent = state.name || "Konto";
   $("einKontoMail").textContent = state.email;
+  renderReihenfolge();
   renderArchiv();
   aktualisierePushSchalter();
   aktualisiereEinSubtexte();
@@ -1710,6 +1944,7 @@ async function neuLaden() {
   if (wo) { zeigeGesperrt(wo); return; }
   renderHeute();
   renderVerlauf();
+  renderFokusGewohnheiten();
 }
 
 function zeigeAnsicht(name) {

@@ -123,6 +123,14 @@ Dazu `fokus_push_subscriptions` (`migration-push.sql`, separat von
 `schema-fokus.sql` — siehe [Benachrichtigungen](#benachrichtigungen)) mit
 derselben Cascade-Regel.
 
+`gewohnheiten.position` bestimmt die Reihenfolge in der Tagesansicht
+(`ORDER BY archiviert, position, created_at`) und lässt sich über
+`PUT /api/gewohnheiten/reihenfolge` setzen. Der Client schickt dabei die
+**vollständige** Liste aller IDs, nicht „schiebe X um eins" — ein Tausch wären
+zwei Anfragen, die sich beim schnellen Tippen verschachteln könnten. Die
+archivierten hängen hinten dran, damit die Positionen lückenlos bleiben, falls
+eine davon später zurückgeholt wird.
+
 ### Kein `status`-Feld
 
 Grün/gelb/offen ergibt sich aus Menge und Ziel (`_lib/tag.js`). Ein zusätzlich
@@ -287,6 +295,44 @@ Stunden. Eine 25-Minuten-Sitzung kann keine 300 Fokusminuten hervorbringen.
 Nur Arbeitsphasen werden geloggt, keine Pausen-Automatik. Die Wochenstatistik
 zählt damit echte Fokusminuten.
 
+**Stopp fragt nach, sobald mindestens eine Minute gelaufen ist.** Eine geloggte
+Sitzung lässt sich nachträglich nicht mehr ändern oder löschen — ein Fehlgriff
+neben „Pause" bliebe also für immer in der Wochenstatistik. Unter einer Minute
+gibt es nichts zu verlieren, da entfällt die Rückfrage.
+
+### Eine Sitzung auf eine Gewohnheit buchen
+
+`fokus_sitzungen.gewohnheit_id` (optional, `migration-sitzung-gewohnheit.sql`):
+Beim Beenden landen die Fokusminuten direkt bei dieser Gewohnheit, statt dass
+man sie von Hand nachtippt. Die Gutschrift sitzt in `beendeSitzung()` in
+`_lib/fokus.js` — der einen Stelle, an der jede Sitzung endet, egal ob durch
+Stopp, durch Ablauf oder weil `start.js` eine vergessene abschließt.
+
+- **Gebucht wird auf `sitzung.datum`**, das lokale Datum vom START. Eine
+  Sitzung über Mitternacht zählt für den Tag, an dem sie begonnen hat.
+- **Addiert, nicht gesetzt.** Zwei Sitzungen am selben Tag ergeben zusammen
+  50 Minuten, von Hand Eingetragenes bleibt stehen. Bei einer
+  Abhaken-Gewohnheit gibt es nichts zu addieren, dort setzt eine Sitzung
+  einfach das Häkchen.
+- **Auch eine abgebrochene Sitzung schreibt.** 18 gearbeitete Minuten sind 18
+  Minuten — dieselbe Lesart wie in der Wochenstatistik.
+- **Gutgeschrieben werden Minuten, egal welche Einheit die Gewohnheit trägt.**
+  Bei „8 Gläser Wasser" landen 25 Minuten als 25 Gläser. Die Einheit ist
+  Freitext, die App kann das nicht prüfen — deshalb nennt die Meldung
+  ausdrücklich „Min" und borgt sich nicht die Einheit der Gewohnheit. So sieht
+  man, dass die Paarung nicht passt, statt eine stille Falschbuchung zu haben.
+- **Obergrenzen sind ausgeschlossen** (`start.js` antwortet mit 400). Fokus-
+  minuten auf ein Limit zu buchen hieße, sich fürs Arbeiten einen schlechteren
+  Tag einzutragen. Archivierte Gewohnheiten genauso wenig.
+- **Ist die Gewohnheit beim Beenden weg oder inzwischen eine Obergrenze, passiert
+  still nichts.** Die Sitzung ist an dem Punkt schon abgeschlossen, sie soll
+  daran nicht scheitern. Der Fremdschlüssel steht auf `ON DELETE SET NULL`, die
+  Sitzung überlebt eine gelöschte Gewohnheit also mitsamt ihren Minuten.
+
+Der Client zeigt die Gutschrift als zweite Snackbar-Meldung, 3,4 Sekunden nach
+der ersten — `melde()` überschreibt sich selbst, gleichzeitig wäre eine der
+beiden nicht zu sehen.
+
 Wochen werden **in JavaScript** gebündelt (`montagVon`), nicht per
 `strftime('%W')` — die SQL-Wochennummer stolpert über den Jahreswechsel.
 Gruppiert wird über `fokus_sitzungen.datum` (das lokale Datum), sonst rutschte
@@ -374,8 +420,8 @@ etwas anzeigen und annehmen kann, liegen zwei Dinge im `localStorage`:
 | `fokus_stand` | Die letzte erfolgreiche Antwort von `GET /api/gewohnheiten` — kompletter Bootstrap inklusive Historie |
 | `fokus_warteschlange` | Noch nicht abgeschickte Tage: `{gewohnheitId, datum, menge, loeschen}` |
 
-**Nur Tage wandern in die Warteschlange.** Gewohnheiten anlegen/ändern und der
-Fokus-Timer brauchen weiter Netz. Beim Timer ist das Absicht: er rechnet
+**Nur Tage wandern in die Warteschlange.** Gewohnheiten anlegen/ändern,
+umsortieren, der Export und der Fokus-Timer brauchen weiter Netz. Beim Timer ist das Absicht: er rechnet
 serverseitig aus `gestartet_am`, eine Stunde später nachgereicht wäre die
 Sitzung schlicht gelogen.
 
@@ -432,7 +478,7 @@ an. Die lokale D1 der ToDo-Liste ist damit **nicht** dieselbe — Nutzer,
 Sitzungen und Login-Codes fehlen hier komplett, und der erste Aufruf endet in
 einem 500er.
 
-Einspielen muss man deshalb **alle drei**: den Auth-Kern (`users`, `sessions`,
+Einspielen muss man deshalb **alle**: den Auth-Kern (`users`, `sessions`,
 `login_codes` aus `ToDo/web/schema.sql`), `schema-fokus.sql` **und**
 `migration-rhythmus.sql` (bei einer ganz frischen lokalen DB reicht das
 aktualisierte `schema-fokus.sql` allein, die Migration ist nur für eine lokale
@@ -515,9 +561,11 @@ laden. HttpOnly stört nicht — der Server prüft nur den Wert.
 | `GET /api/gewohnheiten?heute=` | Bootstrap: Gewohnheiten, volle Log-Historie (`historieAb` bis `heute`), Strähnen |
 | `POST/PATCH/DELETE /api/gewohnheiten` | Anlegen, ändern/archivieren, endgültig löschen |
 | `PUT /api/gewohnheiten/log` | Einen Tag setzen — der einzige Schreibweg für Tage. `loeschen: true` stellt ihn wieder auf „offen" (nur bei einer Obergrenze nötig, siehe oben). |
+| `PUT /api/gewohnheiten/reihenfolge` | `{ids: [...]}` — die vollständige Liste in der gewünschten Reihenfolge, schreibt `position` |
 | `GET /api/fokus?heute=` | Laufende Sitzung, Einstellungen, Wochenstatistik |
-| `POST /api/fokus/start` \| `/pause` \| `/stop` | Sitzung steuern (`pause` ist ein Umschalter) |
+| `POST /api/fokus/start` \| `/pause` \| `/stop` | Sitzung steuern (`pause` ist ein Umschalter). `start` nimmt optional `gewohnheitId` — siehe [Sitzung auf eine Gewohnheit buchen](#eine-sitzung-auf-eine-gewohnheit-buchen). |
 | `PUT /api/fokus/einstellungen` | Standarddauer |
+| `GET /api/export` | Alle eigenen Daten als JSON-Datei zum Herunterladen. Kein Gegenstück zum Zurückspielen. |
 | `POST /api/push/abonnieren` \| `/abbestellen` | Push-Abo speichern/löschen (angemeldet) |
 | `GET/POST /api/push/pruefen` | Cron-Ziel, kein Nutzer-Endpunkt — siehe [Benachrichtigungen](#benachrichtigungen) |
 

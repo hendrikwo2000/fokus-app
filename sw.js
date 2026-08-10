@@ -15,7 +15,7 @@
    auf dem alten Stand haengen (activate() raeumt den alten Cache nur auf,
    wenn sich der Name aendert). Siehe BETRIEB.md.
    ==================================================================== */
-const CACHE_NAME = "fokus-shell-v5";
+const CACHE_NAME = "fokus-shell-v6";
 
 const SHELL_FILES = [
   "/",

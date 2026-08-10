@@ -88,7 +88,12 @@ CREATE TABLE IF NOT EXISTS fokus_sitzungen (
   pausiert_seit     TEXT,                 -- gesetzt = laeuft gerade nicht
   pause_gesamt_sek  INTEGER NOT NULL DEFAULT 0,
   echte_min         INTEGER,
-  vollstaendig      INTEGER
+  vollstaendig      INTEGER,
+  -- Optional: auf diese Gewohnheit werden die Fokusminuten beim Beenden
+  -- gebucht (siehe migration-sitzung-gewohnheit.sql). SET NULL statt CASCADE -
+  -- eine geloeschte Gewohnheit soll die Sitzung nicht mitnehmen, die Minuten
+  -- sind unabhaengig davon gelaufen.
+  gewohnheit_id     TEXT REFERENCES gewohnheiten(id) ON DELETE SET NULL
 );
 
 -- Standarddauer, damit man im Alltag nur "Start" druecken muss.

@@ -183,6 +183,20 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 /* Offline gemerkt, noch nicht beim Server - siehe Warteschlange in app.js. */
 .wartet { white-space: nowrap; color: var(--yellow); font-weight: 600; }
 
+/* Dieselbe Karte in der Tagesansicht des Verlaufs, dort aber als ganzer Knopf:
+   es gibt nur eine Handlung, den Tag eintragen. Erbt Rand und Statusfarbe von
+   .gew, ein <button> bringt nur eigene Schriftvorgaben mit. */
+button.gew {
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* Kein border-color beim Hover: das wuerde den farbigen Statusrand links
+   mit ueberschreiben. */
+button.gew:hover { background: var(--hover); }
+
 .balken { height: 6px; border-radius: 3px; background: var(--leer); overflow: hidden; }
 .balken > i { display: block; height: 100%; border-radius: 3px; background: var(--yellow); transition: width .2s; }
 .gew.erledigt .balken > i { background: var(--green); }
@@ -345,6 +359,29 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .timer-ring > i { display: block; height: 100%; background: var(--accent); transition: width .5s linear; }
 .timer-knoepfe { display: flex; gap: 8px; margin-top: 10px; }
 .timer-knoepfe .btn { min-width: 96px; justify-content: center; }
+
+/* "Zaehlt auf <Gewohnheit>" unter den Knoepfen. Bewusst ein natives <select>
+   und keine Knopfreihe wie sonst: die Liste ist so lang wie die Zahl der
+   Gewohnheiten, und der Browser bringt fuers Handy die bessere Auswahl mit. */
+.timer-buchung {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 14px; max-width: 100%;
+}
+.timer-buchung label { flex: none; }
+.timer-buchung select {
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: var(--row);
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font: inherit;
+  /* Wie bei den Textfeldern: unter 16px zoomt Safari beim Antippen hinein. */
+  font-size: 16px;
+  outline: none;
+}
+.timer-buchung select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.timer-buchung select:disabled { opacity: .6; }
 
 .stat-zahlen {
   display: flex; gap: 10px; margin: 22px 0 14px;

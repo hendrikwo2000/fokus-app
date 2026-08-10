@@ -59,24 +59,46 @@
 </section>
 
 <!-- ---------- Verlauf ---------- -->
+<!-- Zwei Blickrichtungen auf dieselbe Historie: ein Monat einer Gewohnheit,
+     oder ein Tag mit allen Gewohnheiten. Das Zweite ist der Weg, wenn man ein
+     paar Tage nicht in der App war. -->
 <section class="ansicht" id="ansichtVerlauf" hidden>
-  <div class="kal-wahl" id="kalWahl"></div>
-  <div class="kal-kopf">
-    <button class="btn icon-only" id="kalZurueck" title="Vorheriger Monat">‹</button>
-    <div class="kal-monat" id="kalMonat"></div>
-    <button class="btn icon-only" id="kalVor" title="Nächster Monat">›</button>
+  <div class="kal-wahl" id="verlaufModus">
+    <button type="button" data-modus="gewohnheit" aria-selected="true">Nach Gewohnheit</button>
+    <button type="button" data-modus="tag" aria-selected="false">Nach Tag</button>
   </div>
-  <div class="kal-raster" id="kalender"></div>
-  <div class="legende">
-    <span><i style="background:var(--leer)"></i>offen</span>
-    <span id="kalLegendeTeilweise"><i style="background:var(--yellow)"></i>teilweise</span>
-    <span><i style="background:var(--green)"></i>erledigt</span>
-    <span id="kalLegendeUeberschritten" hidden><i style="background:var(--red)"></i>überschritten</span>
-    <span id="kalLegendeGeplant" hidden><i class="kal-nicht-geplant-swatch"></i>nicht geplant</span>
+
+  <div id="verlaufGewohnheit">
+    <div class="kal-wahl" id="kalWahl"></div>
+    <div class="kal-kopf">
+      <button class="btn icon-only" id="kalZurueck" title="Vorheriger Monat">‹</button>
+      <div class="kal-monat" id="kalMonat"></div>
+      <button class="btn icon-only" id="kalVor" title="Nächster Monat">›</button>
+    </div>
+    <div class="kal-raster" id="kalender"></div>
+    <div class="legende">
+      <span><i style="background:var(--leer)"></i>offen</span>
+      <span id="kalLegendeTeilweise"><i style="background:var(--yellow)"></i>teilweise</span>
+      <span><i style="background:var(--green)"></i>erledigt</span>
+      <span id="kalLegendeUeberschritten" hidden><i style="background:var(--red)"></i>überschritten</span>
+      <span id="kalLegendeGeplant" hidden><i class="kal-nicht-geplant-swatch"></i>nicht geplant</span>
+    </div>
+    <p class="hinweis" style="text-align:center; margin-top:12px;">
+      Tippe auf einen Tag, um ihn nachzutragen.
+    </p>
   </div>
-  <p class="hinweis" style="text-align:center; margin-top:12px;">
-    Tippe auf einen Tag, um ihn nachzutragen.
-  </p>
+
+  <div id="verlaufTag" hidden>
+    <div class="kal-kopf">
+      <button class="btn icon-only" id="tagZurueck" title="Vorheriger Tag">‹</button>
+      <div class="kal-monat" id="tagUeberschrift"></div>
+      <button class="btn icon-only" id="tagVor" title="Nächster Tag">›</button>
+    </div>
+    <div class="gew-liste" id="tagListe"></div>
+    <p class="hinweis" style="text-align:center; margin-top:12px;">
+      Tippe auf eine Gewohnheit, um sie für diesen Tag einzutragen.
+    </p>
+  </div>
 </section>
 
 <!-- ---------- Fokus ---------- -->
@@ -89,6 +111,17 @@
       <button class="btn primary" id="startBtn">Start</button>
       <button class="btn" id="pauseBtn" hidden>Pause</button>
       <button class="btn gefahr" id="stopBtn" hidden>Stopp</button>
+    </div>
+
+    <!-- Optional: die Minuten dieser Sitzung landen beim Beenden bei einer
+         Gewohnheit. Waehrend sie laeuft gesperrt - die Buchung haengt an der
+         Sitzung, nicht am Knopf. Obergrenzen stehen gar nicht erst zur Wahl
+         (siehe functions/api/fokus/start.js). -->
+    <div class="timer-buchung">
+      <label for="fokusGewohnheit">Zählt auf</label>
+      <select id="fokusGewohnheit">
+        <option value="">nichts</option>
+      </select>
     </div>
   </div>
 
@@ -301,6 +334,19 @@
       </div>
     </details>
 
+    <details class="ein-abschnitt" id="reihenfolgeAbschnitt" data-abschnitt="reihenfolge">
+      <summary class="ein-kopf">
+        <span class="ein-kopf-icon">↕️</span>
+        <span class="ein-kopf-text">Reihenfolge</span>
+        <span class="ein-kopf-sub" id="subReihenfolge"></span>
+        <span class="ein-kopf-pfeil">▾</span>
+      </summary>
+      <div class="ein-inhalt">
+        <div id="reihenfolgeListe"></div>
+        <p class="hinweis" id="reihenfolgeLeer">Noch keine aktive Gewohnheit.</p>
+      </div>
+    </details>
+
     <details class="ein-abschnitt" id="archivAbschnitt" data-abschnitt="archiv">
       <summary class="ein-kopf">
         <span class="ein-kopf-icon">🗄️</span>
@@ -313,6 +359,16 @@
         <p class="hinweis" id="archivLeer">Noch nichts archiviert.</p>
       </div>
     </details>
+
+    <!-- Sicherung zum Mitnehmen. Ein normaler Link, kein JS: der Server setzt
+         Content-Disposition, der Browser laedt herunter. Zurueckspielen gibt es
+         bewusst nicht, siehe functions/api/export.js. -->
+    <a href="/api/export" download
+       class="ein-abschnitt ein-zeile ein-link" data-abschnitt="export">
+      <span class="ein-kopf-icon">⬇️</span>
+      <span class="ein-kopf-text">Daten exportieren</span>
+      <span class="ein-kopf-sub">JSON-Datei</span>
+    </a>
 
     <!-- ToDo-Zugang ist eine eigene Berechtigung, unabhaengig vom
          Fokus-Konto (siehe schema.sql). "Holen" braucht keine Rueckfrage -

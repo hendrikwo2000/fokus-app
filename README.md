@@ -73,10 +73,18 @@ Neubewertung vergangener Tage.
 
 ### Nachtragen
 
-Im Reiter **Verlauf** steht ein Monatskalender, eine Gewohnheit auf einmal —
-oben zwischen den Gewohnheiten wechseln, mit den Pfeilen durch die Monate
-blättern. Tipp auf einen Tag, um ihn einzutragen — auch rückwirkend. Bei festen
+Im Reiter **Verlauf** kannst du oben zwischen zwei Blickrichtungen umschalten.
+
+**Nach Gewohnheit** ist ein Monatskalender, eine Gewohnheit auf einmal — oben
+zwischen den Gewohnheiten wechseln, mit den Pfeilen durch die Monate blättern.
+Tipp auf einen Tag, um ihn einzutragen — auch rückwirkend. Bei festen
 Wochentagen sind nicht geplante Tage gedimmt und lassen sich nicht antippen.
+
+**Nach Tag** dreht es um: ein Tag, alle Gewohnheiten, die an ihm dran waren.
+Das ist der schnelle Weg, wenn du ein paar Tage nicht in der App warst — statt
+dich pro Gewohnheit durch den Kalender zu klicken, arbeitest du einen Tag nach
+dem anderen ab. Tipp auf eine Gewohnheit öffnet denselben Dialog wie im
+Kalender.
 
 Ein gelber Tag wird grün, sobald du die fehlende Menge nachträgst. **Die Strähne
 heilt dabei rückwirkend**: war die Kette nur wegen dieses einen Tages
@@ -121,12 +129,44 @@ angeschnittene Woche am Rand des Zeitraums würde das Ergebnis verzerren.
 Zu finden im Zahnrad-Menü unter *Archiv* — dort kannst du sie zurückholen oder
 endgültig löschen. Endgültig heißt: mit allen eingetragenen Tagen, unwiderruflich.
 
+Die **Reihenfolge** in der Tagesansicht änderst du im Zahnrad-Menü unter
+*Reihenfolge*, mit den Pfeilen hoch und runter. Was oben steht, siehst du
+morgens zuerst.
+
+**Daten exportieren** im Zahnrad-Menü lädt alles als JSON-Datei herunter:
+Gewohnheiten, jeden eingetragenen Tag und alle Fokus-Sitzungen. Gedacht als
+Sicherung zum Wegräumen. Zurückspielen kann die App eine solche Datei nicht.
+
 ## Fokus-Timer
 
 Start drücken, arbeiten. Standard sind 25 Minuten, änderbar im Zahnrad-Menü.
 
 Am Ende meldet sich die App mit Ton, Tab-Titel und — wenn du es erlaubst — einer
 Benachrichtigung.
+
+**Stopp fragt nach**, sobald mindestens eine Minute gelaufen ist. Eine beendete
+Sitzung steht fest, sie lässt sich nachträglich nicht mehr ändern — und Stopp
+sitzt direkt neben Pause. Zum kurzen Unterbrechen ist Pause da.
+
+### Zählt auf
+
+Unter den Knöpfen kannst du eine Gewohnheit auswählen, bevor du startest. Beim
+Beenden landen die Fokusminuten dann direkt dort: 25 Minuten auf „60 Min lesen"
+bringen die Gewohnheit auf 25 von 60. Eine Abhaken-Gewohnheit wird schlicht
+abgehakt.
+
+Addiert wird auf das, was schon dasteht — zwei Sitzungen an einem Tag ergeben
+zusammen 50 Minuten. Brichst du vorzeitig ab, zählt die Zeit, die wirklich
+gelaufen ist. Während einer Sitzung lässt sich die Auswahl nicht mehr ändern:
+die Buchung hängt an der Sitzung, nicht am Knopf.
+
+Gutgeschrieben werden immer **Minuten**. Für „60 Min lesen" passt das; buchst du
+eine Sitzung auf „8 Gläser Wasser", landen dort 25 Minuten als 25 Gläser. Die
+App kann das nicht wissen — die Auswahl steht dir offen, sinnvoll ist sie nur
+bei Gewohnheiten, die in Zeit zählen.
+
+Obergrenzen stehen nicht zur Auswahl. Fokusminuten auf „höchstens 30 Min
+Instagram" zu buchen würde einen guten Tag schlechter machen.
 
 **Die Sitzung läuft weiter, auch wenn du den Tab schließt oder das Handy
 sperrst.** Sie liegt auf dem Server, nicht im Browser: kommst du zurück, steht
