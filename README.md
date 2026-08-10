@@ -25,8 +25,18 @@ Zwei Arten:
   Zahlenfeld tippen, mit „+" um eins erhöhen, oder den Kreis antippen, um
   direkt aufs Ziel zu springen.
 
+Bei „Mit Zielmenge" legst du zusätzlich die Ziel-Art fest:
+
+- **Mindestens** — das Ziel ist ein Soll, zum Beispiel „30 Min lesen".
+- **Höchstens** — das Ziel ist eine Obergrenze, zum Beispiel „30 Min
+  Instagram". Kein Gelb: entweder im Rahmen (grün) oder drüber (rot). Ein Tipp
+  auf den Kreis trägt **0** ein, nicht die Grenze — geschafft heißt hier ja
+  „möglichst wenig davon", und die 0 ist der beste Tag. Nochmal antippen macht
+  den Tag wieder leer.
+
 Doppeltipp auf eine Gewohnheit öffnet sie zum Bearbeiten — Name, Ziel,
-Rhythmus, alles änderbar außer der Art (Abhaken/Mit Zielmenge).
+Rhythmus, alles änderbar außer der Art (Abhaken/Mit Zielmenge) und der
+Ziel-Art, sobald ein Tag erfasst ist.
 
 ### Rhythmus
 
@@ -60,6 +70,10 @@ unterbrochen, ist sie es danach nicht mehr.
 
 Es gibt keinen Übertrag von heute auf gestern. Jeder Tag steht für sich, und die
 Zahl im Verlauf ist die, die an dem Tag wirklich zusammenkam.
+
+Bei „Höchstens" zählt schon die 0 als erledigt — einen versehentlich
+eingetragenen Tag machst du dort über **Eintrag löschen** im Tag-Dialog wieder
+leer, nicht über die Menge.
 
 Tage in der Zukunft lassen sich nicht eintragen.
 

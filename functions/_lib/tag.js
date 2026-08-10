@@ -80,8 +80,14 @@ export function montagVon(datum) {
  *
  * Bei richtung='hoechstens' (Obergrenze, z.B. "Instagram-Minuten") gibt es
  * kein "teilweise" - es gibt kein sinnvolles "auf halbem Weg zum Limit", nur
- * "noch im Rahmen" (erledigt) oder "drüber" (ueberschritten). Menge 0 gilt
- * als "offen": noch nichts eingetragen, nicht automatisch "im Rahmen".
+ * "noch im Rahmen" (erledigt) oder "drüber" (ueberschritten). Auch die Menge 0
+ * ist erledigt: bei einer Obergrenze ist sie der BESTE Tag, nicht der leere.
+ *
+ * ACHTUNG, Aufrufer: "offen" heisst bei 'hoechstens' damit ausschliesslich
+ * "es gibt keine Log-Zeile". Fuer einen Tag ohne Eintrag darf status() nicht
+ * mit menge=0 aufgerufen werden - der Tag ist dann direkt "offen" (siehe
+ * nochOffen() in api/push/pruefen.js). Deshalb speichert log.js bei
+ * 'hoechstens' die 0 als echte Zeile, statt sie wie sonst zu loeschen.
  */
 export function status(typ, menge, ziel, richtung = "mindestens") {
   const m = Number(menge) || 0;
@@ -89,7 +95,6 @@ export function status(typ, menge, ziel, richtung = "mindestens") {
   const z = Number(ziel) || 0;
 
   if (richtung === "hoechstens") {
-    if (m === 0) return "offen";
     if (z > 0 && m > z) return "ueberschritten";
     return "erledigt";
   }

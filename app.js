@@ -560,7 +560,9 @@ function renderHeute() {
       minus.textContent = "−";
       minus.title = "Um 1 verringern";
       minus.setAttribute("aria-label", `${g.name}: Menge um 1 verringern`);
-      minus.onclick = () => setzeTag(g, state.heute, Math.max(0, menge - 1));
+      // Bei 0 gar nicht erst schicken: bei einer Obergrenze wuerde die 0 sonst
+      // einen erledigten Tag anlegen, obwohl man nur "nichts" verringert hat.
+      minus.onclick = () => { if (menge > 0) setzeTag(g, state.heute, menge - 1); };
       feld.appendChild(minus);
 
       feld.appendChild(eingabe);
@@ -579,13 +581,19 @@ function renderHeute() {
 
     // Ein Tipp = Ziel erreicht (oder wieder auf null). Der haeufigste Fall
     // soll ohne Zahleneingabe gehen.
+    //
+    // Bei einer Obergrenze ist "geschafft" das GEGENTEIL: nicht die Grenze
+    // ausreizen, sondern gar nichts davon gemacht zu haben. Der Haken springt
+    // deshalb auf 0 statt auf das Ziel - und weil die 0 dort selbst schon
+    // gruen ist, braucht das Wiederoeffnen das ausdrueckliche Loeschen.
+    const obergrenze = g.typ === "menge" && g.richtung === "hoechstens";
     const haken = document.createElement("button");
     haken.className = "haken" + (zustand === "erledigt" ? " an" : "");
     haken.textContent = "✓";
     haken.title = zustand === "erledigt" ? "Wieder öffnen" : "Als erledigt markieren";
     haken.onclick = () => {
-      const voll = g.typ === "menge" ? ziel : 1;
-      setzeTag(g, state.heute, zustand === "erledigt" ? 0 : voll);
+      if (zustand === "erledigt") { setzeTag(g, state.heute, 0, obergrenze); return; }
+      setzeTag(g, state.heute, g.typ !== "menge" ? 1 : (obergrenze ? 0 : ziel));
     };
     karte.appendChild(haken);
 
@@ -598,19 +606,25 @@ function renderHeute() {
  * Einen Tag speichern - der einzige Schreibweg fuer Gewohnheiten.
  * Heute und Vergangenheit laufen ueber dieselbe Funktion; genau das macht das
  * Nachtragen aus.
+ *
+ * `loeschen` stellt einen Tag ausdruecklich wieder auf "offen". Noetig nur bei
+ * einer Obergrenze, wo die 0 selbst schon ein erledigter Tag ist (siehe
+ * status() in functions/_lib/tag.js).
  */
-async function setzeTag(gewohnheit, datum, menge) {
+async function setzeTag(gewohnheit, datum, menge, loeschen = false) {
   const antwort = await api("/api/gewohnheiten/log", {
     method: "PUT",
     body: JSON.stringify({
-      gewohnheitId: gewohnheit.id, datum, menge, heute: state.heute,
+      gewohnheitId: gewohnheit.id, datum, menge, loeschen, heute: state.heute,
     }),
   });
   if (!antwort.ok) { melde(antwort.daten.error || "Speichern fehlgeschlagen"); return false; }
 
   const d = antwort.daten;
   const eimer = state.logs[gewohnheit.id] || (state.logs[gewohnheit.id] = {});
-  if (d.menge === 0) delete eimer[datum];
+  // Nicht mehr an der Menge festmachen: bei einer Obergrenze ist die
+  // gespeicherte 0 ein gruener Tag. "Offen" gibt es nur ohne Eintrag.
+  if (d.status === "offen") delete eimer[datum];
   else eimer[datum] = { menge: d.menge, ziel: d.ziel, status: d.status };
 
   const vorher = state.straehnen[gewohnheit.id] || 0;
@@ -1101,7 +1115,10 @@ function oeffneGewohnheitDialog(gewohnheit) {
   setzeRhythmusWahl(gewohnheit ? gewohnheit.rhythmus : "taeglich");
 
   $("gewPopup").hidden = false;
-  $("gewName").focus();
+  // Nur beim Anlegen: dort ist das Feld leer und der naechste Schritt ist
+  // sicher das Tippen. Beim Bearbeiten steht der Name schon da - der Fokus
+  // wuerde auf dem Handy nur die Tastatur ueber den halben Dialog schieben.
+  if (!gewohnheit) $("gewName").focus();
 }
 
 for (const knopf of $("gewTyp").querySelectorAll("button")) {
@@ -1192,6 +1209,9 @@ function oeffneTagDialog(gewohnheit, datum) {
   $("tagMenge").value = String(wert);
   $("tagMengeFeld").hidden = !istMenge;
   $("tagStatus").hidden = istMenge;
+  // Bei einer Obergrenze ist die 0 ein erledigter Tag - zurueck auf "offen"
+  // kommt man dort nur ueber diesen Weg, und nur wenn es etwas zu loeschen gibt.
+  $("tagLoeschen").hidden = !(istMenge && gewohnheit.richtung === "hoechstens" && tag);
 
   $("tagPopup").hidden = false;
   if (istMenge) {
@@ -1232,6 +1252,10 @@ $("tagSpeichern").onclick = async () => {
   }
   if (await setzeTag(tagGewohnheit, tagDatum, menge)) $("tagPopup").hidden = true;
   else $("tagMsg").textContent = "Speichern fehlgeschlagen";
+};
+$("tagLoeschen").onclick = async () => {
+  if (await setzeTag(tagGewohnheit, tagDatum, 0, true)) $("tagPopup").hidden = true;
+  else $("tagMsg").textContent = "Löschen fehlgeschlagen";
 };
 
 // --- Ja/Nein-Rueckfrage ---

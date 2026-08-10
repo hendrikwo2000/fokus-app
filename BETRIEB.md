@@ -129,6 +129,30 @@ Grün/gelb/offen ergibt sich aus Menge und Ziel (`_lib/tag.js`). Ein zusätzlich
 gespeicherter Status könnte davon abweichen, sobald irgendwo nur eins von beiden
 geschrieben wird — abgeleitet kann er das nie.
 
+### Bei einer Obergrenze ist die 0 der beste Tag
+
+Sonst gilt: eine Menge von 0 wird nicht gespeichert, sondern gelöscht — „offen"
+ist die Abwesenheit eines Eintrags, so kann „nichts gemacht" gar nicht erst von
+„nie angefasst" abweichen.
+
+Bei `richtung='hoechstens'` geht das nicht auf. Dort ist 0 kein leerer Tag,
+sondern der bestmögliche („keine Instagram-Minute"), und `status()` gibt
+deshalb **erledigt** zurück. `log.js` speichert die 0 in diesem einen Fall als
+echte Zeile. Zwei Folgen, die man leicht übersieht:
+
+- **„Offen" heißt hier ausschließlich „keine Log-Zeile".** Wer `status()` für
+  einen Tag ohne Eintrag mit `menge = 0` aufruft, bekommt fälschlich „erledigt".
+  Betroffen war `nochOffen()` in `api/push/pruefen.js` — es fragt jetzt vorher
+  auf einen vorhandenen Eintrag ab. `statistik.js` und `erledigtDieseWoche()`
+  taten das schon immer.
+- **Zurück auf „offen" braucht ein eigenes Signal**, weil die Menge das nicht
+  mehr ausdrücken kann: `{ loeschen: true }` im PUT auf
+  `/api/gewohnheiten/log`. In der Oberfläche sind das der Haken auf der
+  Heute-Karte (zweiter Tipp) und „Eintrag löschen" im Tag-Dialog.
+
+Der Haken auf der Heute-Karte springt bei einer Obergrenze auf **0** statt auf
+das Ziel — „geschafft" heißt dort, die Grenze *nicht* ausgereizt zu haben.
+
 ### `ziel_damals`
 
 Jeder Log-Eintrag merkt sich das Ziel, das beim Anlegen galt. Hebst du das Ziel
@@ -381,16 +405,18 @@ laden. HttpOnly stört nicht — der Server prüft nur den Wert.
 | `POST /api/waitlist` | Eintragen für Fokus-Zugang (`quelle='fokus'`). Existiert das Konto schon, wird `fokus_zugang` direkt gesetzt statt auf `todo.it-wolf.org/admin` zu verweisen. |
 | `GET /api/gewohnheiten?heute=` | Bootstrap: Gewohnheiten, volle Log-Historie (`historieAb` bis `heute`), Strähnen |
 | `POST/PATCH/DELETE /api/gewohnheiten` | Anlegen, ändern/archivieren, endgültig löschen |
-| `PUT /api/gewohnheiten/log` | Einen Tag setzen — der einzige Schreibweg für Tage |
+| `PUT /api/gewohnheiten/log` | Einen Tag setzen — der einzige Schreibweg für Tage. `loeschen: true` stellt ihn wieder auf „offen" (nur bei einer Obergrenze nötig, siehe oben). |
 | `GET /api/fokus?heute=` | Laufende Sitzung, Einstellungen, Wochenstatistik |
 | `POST /api/fokus/start` \| `/pause` \| `/stop` | Sitzung steuern (`pause` ist ein Umschalter) |
 | `PUT /api/fokus/einstellungen` | Standarddauer |
 | `POST /api/push/abonnieren` \| `/abbestellen` | Push-Abo speichern/löschen (angemeldet) |
 | `GET/POST /api/push/pruefen` | Cron-Ziel, kein Nutzer-Endpunkt — siehe [Benachrichtigungen](#benachrichtigungen) |
 
-Der Typ einer Gewohnheit lässt sich **nicht** ändern. Aus binär „mit Zielmenge"
-zu machen würde die ganze Historie neu bewerten — aus jedem Häkchen würde
-„Menge 1" gegen ein Ziel von 30. Wer den Typ wechseln will, legt eine neue an.
+Typ und Ziel-Art einer Gewohnheit lassen sich nur ändern, **solange kein Tag
+erfasst ist** — der PATCH antwortet sonst mit 409. Danach würde ein Wechsel die
+ganze Historie neu bewerten: aus jedem Häkchen würde „Menge 1" gegen ein Ziel
+von 30, und aus einem erreichten Ziel eine überschrittene Grenze. Wer später
+wechseln will, legt eine neue Gewohnheit an.
 
 ## Bereitstellen
 

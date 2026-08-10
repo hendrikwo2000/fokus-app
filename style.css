@@ -588,7 +588,12 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 }
 .switch input:checked + .switch-track { background: var(--green); border-color: var(--green); }
 .switch input:checked + .switch-track .switch-thumb { transform: translateX(13px); background: #fff; }
-.switch-label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+/* Text links, Schalter rechts - der Schalter sitzt damit am Zeilenende, wo
+   auch die Pfeile der Akkordeon-Abschnitte stehen. Umgestellt wird per
+   `order` statt im HTML, weil die Regeln oben am Geschwister-Selektor
+   haengen (input + track, input ~ label) und eine andere Reihenfolge im
+   Markup sie stillschweigend wirkungslos machen wuerde. */
+.switch-label { font-size: 12.5px; font-weight: 600; color: var(--muted); order: -1; }
 .switch input:checked ~ .switch-label { color: var(--text); }
 
 .ein-kopf {

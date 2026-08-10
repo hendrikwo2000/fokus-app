@@ -66,9 +66,11 @@ function nochOffen(gewohnheit, tageDerGewohnheit, heute) {
     return erledigtDieseWoche(gewohnheit, tageDerGewohnheit, heute) < gewohnheit.wochenziel;
   }
   const heutiger = tageDerGewohnheit[heute];
-  const menge = heutiger ? heutiger.menge : 0;
-  const ziel = heutiger ? heutiger.ziel : gewohnheit.zielmenge;
-  const st = status(gewohnheit.typ, menge, ziel, gewohnheit.richtung);
+  // Kein Eintrag heisst offen - und zwar ohne status() zu fragen: bei einer
+  // Obergrenze waere die 0 dort "erledigt" (siehe _lib/tag.js), ein noch gar
+  // nicht angefasster Tag wuerde also faelschlich als geschafft gelten.
+  if (!heutiger) return true;
+  const st = status(gewohnheit.typ, heutiger.menge, heutiger.ziel, gewohnheit.richtung);
   return st === "offen" || st === "teilweise";
 }
 

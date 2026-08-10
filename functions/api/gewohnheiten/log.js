@@ -39,6 +39,11 @@ export async function onRequestPut({ request, env }) {
     return json({ error: "Die Menge muss eine ganze Zahl ab 0 sein." }, 400);
   }
 
+  // Ausdruecklich wieder auf "offen" stellen. Nur bei einer Obergrenze noetig:
+  // dort ist die 0 ein gueltiger, erledigter Tag (siehe unten), die Menge
+  // allein kann "nichts eingetragen" also nicht mehr ausdruecken.
+  const loeschen = body?.loeschen === true;
+
   try {
     const gewohnheit = await env.DB.prepare(
       `SELECT id, typ, zielmenge, richtung, rhythmus, wochentage_maske, wochenziel
@@ -49,7 +54,13 @@ export async function onRequestPut({ request, env }) {
     // Binaer kennt nur 0 und 1 - alles andere waere eine Menge ohne Bedeutung.
     const wert = gewohnheit.typ === "binaer" ? (menge >= 1 ? 1 : 0) : menge;
 
-    if (wert === 0) {
+    // Bei einer Obergrenze ist die 0 der beste Tag ("keine Instagram-Minute"),
+    // nicht der leere - sie wird deshalb als echte Zeile gespeichert und faellt
+    // gruen aus. Ueberall sonst bleibt es bei der alten Regel.
+    const nullIstErledigt = gewohnheit.typ === "menge" && gewohnheit.richtung === "hoechstens";
+    const geloescht = loeschen || (wert === 0 && !nullIstErledigt);
+
+    if (geloescht) {
       // Null wird nicht gespeichert, sondern geloescht. "Offen" ist die
       // Abwesenheit eines Eintrags - so bleibt der Unterschied zwischen
       // "nichts gemacht" und "nie angefasst" gar nicht erst entstehen.
@@ -92,7 +103,8 @@ export async function onRequestPut({ request, env }) {
     return json({
       ok: true,
       datum,
-      menge: wert,
+      // Nach einem Loeschen ist der Tag leer, egal was geschickt wurde.
+      menge: geloescht ? 0 : wert,
       ziel: zielDesTages,
       status: neuerStatus,
       straehne: straehneFuer(gewohnheit, gruene, heute),
