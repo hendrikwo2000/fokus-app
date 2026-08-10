@@ -179,7 +179,8 @@ function statusVon(gewohnheit, menge, ziel) {
   if (gewohnheit.typ === "binaer") return m >= 1 ? "erledigt" : "offen";
   const z = Number(ziel) || 0;
   if (gewohnheit.richtung === "hoechstens") {
-    return (z > 0 && m > z) ? "ueberschritten" : "erledigt";
+    // Eine Grenze von 0 ist erlaubt und ab der ersten Einheit ueberschritten.
+    return m > z ? "ueberschritten" : "erledigt";
   }
   if (z > 0 && m >= z) return "erledigt";
   return m > 0 ? "teilweise" : "offen";
@@ -595,14 +596,33 @@ function istGeplant(gewohnheit, datum) {
   return (gewohnheit.wochentageMaske & (1 << wochentagIndex(datum))) !== 0;
 }
 
+/**
+ * Zaehlt ein Tag OHNE Eintrag als erledigt? Nur bei einer Obergrenze, nur in
+ * der Vergangenheit, nur ab dem Anlegen der Gewohnheit - Spiegel von
+ * stillerTagZaehlt() in functions/_lib/tag.js. Aendert sich die Regel dort,
+ * muss sie hier mit.
+ */
+function stillerTagZaehlt(gewohnheit, datum) {
+  if (gewohnheit.typ !== "menge" || gewohnheit.richtung !== "hoechstens") return false;
+  if (datum >= state.heute) return false;
+  return !gewohnheit.angelegtAm || datum >= gewohnheit.angelegtAm;
+}
+
+// Status eines Tages fuer die Anzeige: der Eintrag, wenn es einen gibt, sonst
+// "erledigt" bei einer stillen Obergrenze und ansonsten "offen".
+function zustandVon(gewohnheit, datum) {
+  const tag = tagVon(gewohnheit.id, datum);
+  if (tag) return tag.status;
+  return stillerTagZaehlt(gewohnheit, datum) ? "erledigt" : "offen";
+}
+
 // Zahl der in der laufenden Woche (Montag-Sonntag) bereits erledigten Tage -
 // fuer den Wochenfortschritt bei 'x_pro_woche' und dessen Straehne.
 function erledigtDieseWoche(gewohnheit) {
   const start = montagVon(state.heute);
   let n = 0;
   for (let i = 0; i < 7; i++) {
-    const tag = tagVon(gewohnheit.id, tagPlus(start, i));
-    if (tag && tag.status === "erledigt") n++;
+    if (zustandVon(gewohnheit, tagPlus(start, i)) === "erledigt") n++;
   }
   return n;
 }
@@ -734,8 +754,10 @@ function renderHeute() {
       // Grenze schlecht - derselbe Balken mit zwei Bedeutungen. Ueber der
       // Grenze laeuft er wieder voll, dann rot: ein leerer roter Balken waere
       // gar nicht zu sehen.
+      // Bei einer Grenze von 0 ("gar keine") gibt es kein Budget zum Teilen -
+      // der Balken ist voll, gruen oder rot entscheidet der Zustand.
       const anteil = obergrenze
-        ? (zustand === "ueberschritten" ? 100 : 100 - menge / ziel * 100)
+        ? (zustand === "ueberschritten" || ziel <= 0 ? 100 : 100 - menge / ziel * 100)
         : menge / ziel * 100;
       fuellung.style.width = `${Math.max(0, Math.min(100, Math.round(anteil)))}%`;
       balken.appendChild(fuellung);
@@ -956,8 +978,11 @@ function renderKalender() {
 
     const zelle = document.createElement("button");
     zelle.type = "button";
+    // zustandVon() statt tag.status: bei einer Obergrenze ist auch ein Tag
+    // ohne Eintrag gruen. Ein grauer Kalender unter einer laufenden Flamme
+    // saehe aus, als stimme eins von beidem nicht.
     zelle.className = "kal-zelle "
-      + (!geplant ? "nicht-geplant" : (tag ? tag.status : "offen"))
+      + (!geplant ? "nicht-geplant" : zustandVon(gewohnheit, d))
       + (d === state.heute ? " heute" : "")
       + (zukunft ? " zukunft" : "");
     const tagZahl = document.createElement("span");
@@ -978,6 +1003,8 @@ function renderKalender() {
     zelle.title = `${wochentagVon(d)}, ${formatDatum(d)}`
       + (!geplant ? " — nicht geplant"
         : tag ? `: ${tag.menge}${gewohnheit.typ === "menge" ? " / " + tag.ziel + (gewohnheit.einheit ? " " + gewohnheit.einheit : "") : ""}`
+        // Angenommen, nicht bestaetigt - der Unterschied soll erkennbar sein.
+        : stillerTagZaehlt(gewohnheit, d) ? " — nichts eingetragen, also im Rahmen"
         : "");
 
     if (zukunft || !geplant) zelle.disabled = true;
@@ -1273,6 +1300,12 @@ function setzeRichtungWahl(richtung) {
   for (const knopf of $("gewRichtung").querySelectorAll("button")) {
     knopf.setAttribute("aria-pressed", String(knopf.dataset.richtung === richtung));
   }
+  // 0 ist nur als Obergrenze sinnvoll ("gar keine Zigarette") - als Soll waere
+  // es immer erfuellt. Der Server prueft dasselbe nochmal.
+  const obergrenze = richtung === "hoechstens";
+  $("gewZiel").min = obergrenze ? "0" : "1";
+  $("gewZielLabel").textContent = obergrenze ? "Höchstens pro Tag" : "Ziel pro Tag";
+  if (!obergrenze && Number($("gewZiel").value) < 1) $("gewZiel").value = "1";
 }
 
 function setzeRhythmusWahl(rhythmus) {
@@ -1296,7 +1329,9 @@ function oeffneGewohnheitDialog(gewohnheit) {
   $("gewTitel").textContent = gewohnheit ? "Gewohnheit bearbeiten" : "Neue Gewohnheit";
   $("gewIcon").textContent = gewohnheit ? "✏️" : "✨";
   $("gewName").value = gewohnheit ? gewohnheit.name : "";
-  $("gewZiel").value = gewohnheit && gewohnheit.zielmenge ? gewohnheit.zielmenge : 30;
+  // != null, nicht truthy: bei einer Obergrenze ist 0 eine gueltige Zielmenge
+  // und wuerde sonst beim Bearbeiten kommentarlos auf 30 springen.
+  $("gewZiel").value = gewohnheit && gewohnheit.zielmenge != null ? gewohnheit.zielmenge : 30;
   $("gewEinheit").value = (gewohnheit && gewohnheit.einheit) || "";
   $("gewMsg").textContent = "";
   $("gewArchivieren").hidden = !gewohnheit;

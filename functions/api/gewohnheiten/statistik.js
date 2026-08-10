@@ -15,7 +15,7 @@
 
 import { json } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
-import { pruefeHeute, tagPlus, status, montagVon } from "../../_lib/tag.js";
+import { pruefeHeute, tagPlus, status, montagVon, stillerTagZaehlt } from "../../_lib/tag.js";
 
 const ZEITRAEUME = [7, 30, 90];
 
@@ -40,7 +40,7 @@ export async function onRequestGet({ request, env }) {
 
   try {
     const gewohnheiten = (await env.DB.prepare(
-      `SELECT id, name, typ, zielmenge, richtung, rhythmus, wochentage_maske, wochenziel
+      `SELECT id, name, typ, zielmenge, richtung, rhythmus, wochentage_maske, wochenziel, created_at
          FROM gewohnheiten WHERE user_id = ? AND archiviert = 0
         ORDER BY position, created_at`
     ).bind(nutzerId).all()).results;
@@ -58,7 +58,9 @@ export async function onRequestGet({ request, env }) {
 
     function warErledigt(g, datum) {
       const l = (logsVon[g.id] || {})[datum];
-      if (!l) return false;
+      // Kein Eintrag: bei einer Obergrenze zaehlt der Tag trotzdem, sonst
+      // nicht (siehe stillerTagZaehlt in _lib/tag.js).
+      if (!l) return stillerTagZaehlt(g, datum, heute);
       const ziel = l.ziel_damals != null ? l.ziel_damals : g.zielmenge;
       return status(g.typ, l.menge, ziel, g.richtung) === "erledigt";
     }

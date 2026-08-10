@@ -168,7 +168,9 @@
     </div>
     <div class="popup-reihe" id="gewZielFeld" hidden>
       <div class="popup-feld">
-        <label for="gewZiel">Ziel pro Tag</label>
+        <!-- Beschriftung und min wechseln mit der Ziel-Art: bei einer
+             Obergrenze ist 0 erlaubt (setzeRichtungWahl in app.js). -->
+        <label for="gewZiel" id="gewZielLabel">Ziel pro Tag</label>
         <input type="number" id="gewZiel" min="1" step="1" value="30">
       </div>
       <div class="popup-feld">

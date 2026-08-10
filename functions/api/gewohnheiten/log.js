@@ -12,7 +12,9 @@
 
 import { json, liesJson } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
-import { pruefeHeute, pruefeLogDatum, tagPlus, status, straehneFuer } from "../../_lib/tag.js";
+import {
+  pruefeHeute, pruefeLogDatum, tagPlus, status, straehneFuer, ergaenzeStilleTage,
+} from "../../_lib/tag.js";
 
 const LOG_TAGE = 730;
 
@@ -46,7 +48,7 @@ export async function onRequestPut({ request, env }) {
 
   try {
     const gewohnheit = await env.DB.prepare(
-      `SELECT id, typ, zielmenge, richtung, rhythmus, wochentage_maske, wochenziel
+      `SELECT id, typ, zielmenge, richtung, rhythmus, wochentage_maske, wochenziel, created_at
          FROM gewohnheiten WHERE id = ? AND user_id = ?`
     ).bind(id, nutzerId).first();
     if (!gewohnheit) return json({ error: "Gewohnheit nicht gefunden" }, 404);
@@ -88,9 +90,11 @@ export async function onRequestPut({ request, env }) {
     ).bind(id, tagPlus(heute, -LOG_TAGE)).all()).results;
 
     const gruene = new Set();
+    const mitZeile = new Set();
     let neuerStatus = "offen";
     let zielDesTages = gewohnheit.zielmenge;
     for (const l of alle) {
+      mitZeile.add(l.datum);
       const ziel = l.ziel_damals != null ? l.ziel_damals : gewohnheit.zielmenge;
       const st = status(gewohnheit.typ, l.menge, ziel, gewohnheit.richtung);
       if (st === "erledigt") gruene.add(l.datum);
@@ -99,6 +103,9 @@ export async function onRequestPut({ request, env }) {
         zielDesTages = ziel;
       }
     }
+    // Bei einer Obergrenze zaehlen die Tage ohne Zeile mit - sonst haette die
+    // Straehne hier einen anderen Wert als im Bootstrap (index.js).
+    ergaenzeStilleTage(gruene, gewohnheit, mitZeile, tagPlus(heute, -LOG_TAGE), heute);
 
     return json({
       ok: true,

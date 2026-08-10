@@ -32,7 +32,15 @@ Bei „Mit Zielmenge" legst du zusätzlich die Ziel-Art fest:
   Instagram". Kein Gelb: entweder im Rahmen (grün) oder drüber (rot). Ein Tipp
   auf den Kreis trägt **0** ein, nicht die Grenze — geschafft heißt hier ja
   „möglichst wenig davon", und die 0 ist der beste Tag. Nochmal antippen macht
-  den Tag wieder leer.
+  den Tag wieder leer. Als Grenze ist auch **0** erlaubt („gar keine
+  Zigarette"), dann zählt schon die erste als drüber.
+
+**Bei „Höchstens" zählt ein vergangener Tag, an dem du nichts eingetragen hast,
+als geschafft.** Wer gar nicht auf Instagram war, hat die Grenze eingehalten —
+das jeden Abend zu bestätigen wäre Arbeit ohne Gewinn. Heißt aber auch: die
+Flamme läuft von allein weiter, solange du nichts über der Grenze einträgst,
+und der Kalender ist ab dem Anlegetag grün. Bei „Mindestens" bleibt es dabei,
+dass nur zählt, was du wirklich einträgst.
 
 Doppeltipp auf eine Gewohnheit öffnet sie zum Bearbeiten — Name, Ziel,
 Rhythmus, alles änderbar außer der Art (Abhaken/Mit Zielmenge) und der

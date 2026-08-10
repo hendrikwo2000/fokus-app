@@ -95,12 +95,55 @@ export function status(typ, menge, ziel, richtung = "mindestens") {
   const z = Number(ziel) || 0;
 
   if (richtung === "hoechstens") {
-    if (z > 0 && m > z) return "ueberschritten";
+    // Kein "z > 0"-Vorbehalt: eine Grenze von 0 ("gar keine Zigarette") ist
+    // erlaubt und muss ab der ersten Einheit ueberschritten sein.
+    if (m > z) return "ueberschritten";
     return "erledigt";
   }
 
   if (z > 0 && m >= z) return "erledigt";
   return m > 0 ? "teilweise" : "offen";
+}
+
+/**
+ * Zaehlt ein Tag OHNE Eintrag bei dieser Gewohnheit als erledigt?
+ *
+ * Nur bei einer Obergrenze - und dort ist es die ehrlichere Lesart: wer gar
+ * nicht auf Instagram war, hat die Grenze eingehalten, auch ohne das jeden
+ * Abend zu bestaetigen. Bei einem Soll waere dieselbe Annahme geschenkt.
+ *
+ * Zwei Schranken, ohne die es Unsinn ergibt:
+ * - **Nur die Vergangenheit.** Der heutige Tag bleibt offen, sonst waere er
+ *   gruen, bevor er vorbei ist - und die Erinnerung (push/pruefen.js) haette
+ *   nie etwas zu melden.
+ * - **Erst ab dem Anlegen.** Ohne das liefe die Straehne einer gestern
+ *   angelegten Gewohnheit ueber die vollen zwei Jahre Log-Fenster zurueck.
+ *
+ * `angelegtAm` ist `gewohnheiten.created_at` (Datum reicht, Uhrzeit egal).
+ */
+export function stillerTagZaehlt(gewohnheit, datum, heute) {
+  if (gewohnheit.typ !== "menge" || gewohnheit.richtung !== "hoechstens") return false;
+  if (datum >= heute) return false;
+  const angelegt = String(gewohnheit.created_at || "").slice(0, 10);
+  return !angelegt || datum >= angelegt;
+}
+
+/**
+ * Die stillen Tage einer Obergrenze in die gruene Menge nachtragen - alles
+ * zwischen `ab` und gestern, wozu es keine Zeile gibt. `vorhandene` sind die
+ * Daten, zu denen eine Zeile existiert (egal mit welchem Status): ein Tag
+ * ueber der Grenze bleibt rot, er ist ja eingetragen.
+ */
+export function ergaenzeStilleTage(gruene, gewohnheit, vorhandene, ab, heute) {
+  if (gewohnheit.typ !== "menge" || gewohnheit.richtung !== "hoechstens") return gruene;
+  const vorhanden = vorhandene instanceof Set ? vorhandene : new Set(vorhandene);
+  const angelegt = String(gewohnheit.created_at || "").slice(0, 10);
+  let tag = angelegt > ab ? angelegt : ab;
+  while (tag < heute) {
+    if (!vorhanden.has(tag)) gruene.add(tag);
+    tag = tagPlus(tag, 1);
+  }
+  return gruene;
 }
 
 /**

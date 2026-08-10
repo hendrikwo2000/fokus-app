@@ -10,7 +10,9 @@
 
 import { json, liesJson } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
-import { pruefeHeute, istDatum, tagPlus, status, straehneFuer } from "../../_lib/tag.js";
+import {
+  pruefeHeute, istDatum, tagPlus, status, straehneFuer, ergaenzeStilleTage,
+} from "../../_lib/tag.js";
 
 // Genug fuer ein Eigennutz-Werkzeug und ein Deckel gegen versehentliche
 // Massenanlage. Keine Zahl, die jemals im Weg stehen sollte.
@@ -41,6 +43,10 @@ function alsGewohnheit(z) {
     wochenziel: z.wochenziel,
     position: z.position,
     archiviert: z.archiviert === 1,
+    // Nur das Datum, die Uhrzeit interessiert niemanden. Die App braucht es,
+    // um stille Tage einer Obergrenze nicht vor dem Anlegen mitzuzaehlen -
+    // dieselbe Schranke wie stillerTagZaehlt() in _lib/tag.js.
+    angelegtAm: String(z.created_at || "").slice(0, 10),
   };
 }
 
@@ -48,7 +54,7 @@ function alsGewohnheit(z) {
  * Name/Ziel/Einheit aus dem Anfragekoerper pruefen.
  * Gibt entweder { werte } oder { meldung } zurueck.
  */
-function pruefeFelder(body, typ) {
+function pruefeFelder(body, typ, richtung) {
   const name = String(body?.name || "").trim();
   if (!name) return { meldung: "Die Gewohnheit braucht einen Namen." };
   if (name.length > MAX_NAME) return { meldung: `Der Name darf höchstens ${MAX_NAME} Zeichen haben.` };
@@ -58,9 +64,12 @@ function pruefeFelder(body, typ) {
   // Ganze Zahlen, bewusst kein Komma: Minuten, Seiten und Wiederholungen
   // decken praktisch alles ab, und Komma-vs-Punkt in Eingabefeldern ist eine
   // verlaessliche Fehlerquelle.
+  // Bei einer Obergrenze ist 0 ein sinnvolles Ziel ("gar keine Zigarette") -
+  // bei einem Soll waere es immer erfuellt und damit keins.
+  const kleinstes = richtung === "hoechstens" ? 0 : 1;
   const ziel = Number(body?.zielmenge);
-  if (!Number.isInteger(ziel) || ziel < 1) {
-    return { meldung: "Die Zielmenge muss eine ganze Zahl ab 1 sein." };
+  if (!Number.isInteger(ziel) || ziel < kleinstes) {
+    return { meldung: `Die Zielmenge muss eine ganze Zahl ab ${kleinstes} sein.` };
   }
   // Einheit ist optional - nicht jede Zielmenge braucht eine Beschriftung.
   const einheit = String(body?.einheit || "").trim().slice(0, MAX_EINHEIT) || null;
@@ -122,7 +131,7 @@ export async function onRequestGet({ request, env }) {
   try {
     const gewohnheiten = (await env.DB.prepare(
       `SELECT id, name, typ, zielmenge, einheit, richtung, rhythmus, wochentage_maske, wochenziel,
-              position, archiviert
+              position, archiviert, created_at
          FROM gewohnheiten
         WHERE user_id = ?
         ORDER BY archiviert, position, created_at`
@@ -164,7 +173,12 @@ export async function onRequestGet({ request, env }) {
 
     const straehnen = {};
     for (const g of gewohnheiten) {
-      straehnen[g.id] = straehneFuer(g, gruene[g.id] || new Set(), heute);
+      const gruen = gruene[g.id] || (gruene[g.id] = new Set());
+      // Bei einer Obergrenze zaehlen auch die Tage mit, an denen gar nichts
+      // eingetragen wurde (siehe stillerTagZaehlt in _lib/tag.js). Die Daten
+      // mit Zeile stehen schon in `sichtbar`.
+      ergaenzeStilleTage(gruen, g, Object.keys(sichtbar[g.id] || {}), historieAb, heute);
+      straehnen[g.id] = straehneFuer(g, gruen, heute);
     }
 
     return json({
@@ -193,13 +207,14 @@ export async function onRequestPost({ request, env }) {
   if (leseFehler) return leseFehler;
 
   const typ = body?.typ === "menge" ? "menge" : "binaer";
-  const { werte, meldung } = pruefeFelder(body, typ);
+  // Richtung zuerst: sie entscheidet mit, welche Zielmenge gueltig ist.
+  const { werte: richtungWerte } = pruefeRichtung(body, typ);
+
+  const { werte, meldung } = pruefeFelder(body, typ, richtungWerte.richtung);
   if (meldung) return json({ error: meldung }, 400);
 
   const { werte: rhythmusWerte, meldung: rhythmusMeldung } = pruefeRhythmus(body);
   if (rhythmusMeldung) return json({ error: rhythmusMeldung }, 400);
-
-  const { werte: richtungWerte } = pruefeRichtung(body, typ);
 
   try {
     const anzahl = await env.DB.prepare(
@@ -299,13 +314,16 @@ export async function onRequestPatch({ request, env }) {
       typ = gewuenschterTyp;
     }
 
-    const { werte, meldung } = pruefeFelder(body, typ);
+    // Richtung vor den Feldern: sie entscheidet mit, welche Zielmenge gueltig
+    // ist (0 nur bei einer Obergrenze).
+    const { werte: richtungWerte } = pruefeRichtung(body, typ);
+
+    const { werte, meldung } = pruefeFelder(body, typ, richtungWerte.richtung);
     if (meldung) return json({ error: meldung }, 400);
 
     const { werte: rhythmusWerte, meldung: rhythmusMeldung } = pruefeRhythmus(body);
     if (rhythmusMeldung) return json({ error: rhythmusMeldung }, 400);
 
-    const { werte: richtungWerte } = pruefeRichtung(body, typ);
     if (richtungWerte.richtung !== alt.richtung) {
       const hatHistorie = await env.DB.prepare(
         "SELECT 1 FROM gewohnheit_logs WHERE gewohnheit_id = ? LIMIT 1"

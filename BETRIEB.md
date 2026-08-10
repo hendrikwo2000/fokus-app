@@ -153,6 +153,44 @@ echte Zeile. Zwei Folgen, die man leicht übersieht:
 Der Haken auf der Heute-Karte springt bei einer Obergrenze auf **0** statt auf
 das Ziel — „geschafft" heißt dort, die Grenze *nicht* ausgereizt zu haben.
 
+**Die Zielmenge darf bei einer Obergrenze 0 sein** („gar keine Zigarette").
+Deshalb wird `pruefeRichtung()` in `index.js` **vor** `pruefeFelder()`
+aufgerufen: die Richtung entscheidet, ob 0 oder 1 die kleinste gültige
+Zielmenge ist. Im Client hängt an derselben Regel das `min` des Eingabefelds
+(`setzeRichtungWahl`), und `zielmenge` darf nirgends auf Wahrheitswert geprüft
+werden — `!= null`, sonst springt eine 0 beim Bearbeiten still auf 30.
+
+### Ein stiller Tag zählt bei einer Obergrenze
+
+`stillerTagZaehlt()` in `_lib/tag.js`: bei `richtung='hoechstens'` gilt ein Tag
+**ohne Eintrag** rückwirkend als erledigt. Wer gar nicht auf Instagram war, hat
+die Grenze eingehalten, auch ohne das jeden Abend zu bestätigen — ohne diese
+Regel müsste man täglich aktiv eine 0 eintragen, sonst sähen Flamme und
+Erfüllungsquote schlechter aus als die Wirklichkeit.
+
+Zwei Schranken, ohne die die Regel Unsinn ergibt:
+
+- **Nur die Vergangenheit.** Heute bleibt offen, sonst wäre der Tag grün, bevor
+  er vorbei ist, und die Erinnerung hätte nie etwas zu melden.
+- **Erst ab `gewohnheiten.created_at`.** Ohne das liefe die Straehne einer
+  gestern angelegten Gewohnheit über das volle 730-Tage-Fenster zurück.
+  Deshalb steht `created_at` jetzt in jedem SELECT, der Tage bewertet, und als
+  `angelegtAm` (nur Datum) in der API-Antwort.
+
+Vier Stellen zählen grüne Tage und müssen dieselbe Regel anwenden — weicht eine
+ab, springt die Flamme je nach Endpunkt: `index.js` (Bootstrap), `log.js`
+(nach jedem Schreiben), `statistik.js`, `push/pruefen.js`. Die ersten beiden
+benutzen `ergaenzeStilleTage()`, die anderen `stillerTagZaehlt()` direkt.
+Im Client spiegelt `stillerTagZaehlt()`/`zustandVon()` in `app.js` dasselbe für
+Kalender und Wochenfortschritt.
+
+**Sichtbare Folgen, die man erwarten sollte:** Der Kalender einer Obergrenze
+ist ab dem Anlegetag durchgehend grün (der Tooltip unterscheidet „nichts
+eingetragen, also im Rahmen" von einem echten Eintrag), und bei
+`hoechstens` + `x_pro_woche` ist das Wochenziel spätestens gegen Wochenende von
+allein erreicht — die Gewohnheit verschwindet dann für den Rest der Woche aus
+„Heute".
+
 ### `ziel_damals`
 
 Jeder Log-Eintrag merkt sich das Ziel, das beim Anlegen galt. Hebst du das Ziel

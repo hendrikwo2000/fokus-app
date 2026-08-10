@@ -22,7 +22,7 @@
 
 import { json } from "../../_lib/antwort.js";
 import { sendeWebPush } from "../../_lib/webpush.js";
-import { status, montagVon, tagPlus } from "../../_lib/tag.js";
+import { status, montagVon, tagPlus, stillerTagZaehlt } from "../../_lib/tag.js";
 
 // "Heute" bewusst in der Zeitzone Europe/Berlin, nicht UTC - sonst faellt der
 // Tageswechsel je nach Sommer-/Winterzeit bis zu zwei Stunden falsch.
@@ -53,7 +53,12 @@ function erledigtDieseWoche(gewohnheit, tageDerGewohnheit, heute) {
     const tag = tagPlus(start, i);
     if (tag > heute) break;
     const eintrag = tageDerGewohnheit[tag];
-    if (eintrag && status(gewohnheit.typ, eintrag.menge, eintrag.ziel, gewohnheit.richtung) === "erledigt") n++;
+    if (!eintrag) {
+      // Ohne Eintrag zaehlt der Tag nur bei einer Obergrenze mit.
+      if (stillerTagZaehlt(gewohnheit, tag, heute)) n++;
+      continue;
+    }
+    if (status(gewohnheit.typ, eintrag.menge, eintrag.ziel, gewohnheit.richtung) === "erledigt") n++;
   }
   return n;
 }
@@ -89,7 +94,7 @@ async function pruefeUndSende(env) {
 
   for (const zeile of nutzerZeilen.results) {
     const gewohnheiten = (await env.DB.prepare(
-      `SELECT id, typ, zielmenge, richtung, rhythmus, wochentage_maske, wochenziel
+      `SELECT id, typ, zielmenge, richtung, rhythmus, wochentage_maske, wochenziel, created_at
          FROM gewohnheiten WHERE user_id = ? AND archiviert = 0`
     ).bind(zeile.user_id).all()).results;
     if (!gewohnheiten.length) continue;
