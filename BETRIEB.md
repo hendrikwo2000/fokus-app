@@ -191,6 +191,23 @@ eingetragen, also im Rahmen" von einem echten Eintrag), und bei
 allein erreicht — die Gewohnheit verschwindet dann für den Rest der Woche aus
 „Heute".
 
+### Die Statistik beginnt beim Anlegen
+
+`statistik.js` schneidet den Zeitraum am `created_at` der Gewohnheit ab. Ohne
+das zählten Tage in den Nenner, an denen es die Gewohnheit noch gar nicht gab —
+eine vier Tage alte Gewohnheit stünde bei „4 von 30 Tage (13 %)" und könnte die
+100 % erst einen Monat später erreichen.
+
+**Ausnahme, die man leicht übersieht:** Nachtragen geht beliebig weit zurück
+(`pruefeLogDatum` verbietet nur die Zukunft), Log-Zeilen können also **älter
+sein als die Gewohnheit**. Deshalb ist der Beginn `min(created_at, ältester
+Eintrag im Fenster)` — sonst verschwände eine nachgetragene Woche aus der
+Quote. Für stille Tage (oben) gilt das ausdrücklich NICHT: ein echter Eintrag
+zählt rückwirkend, eine Annahme nicht.
+
+Der heutige Tag zählt bewusst mit, obwohl er meist noch offen ist. Er ist keine
+Verzerrung, sondern der aktuelle Stand.
+
 ### `ziel_damals`
 
 Jeder Log-Eintrag merkt sich das Ziel, das beim Anlegen galt. Hebst du das Ziel

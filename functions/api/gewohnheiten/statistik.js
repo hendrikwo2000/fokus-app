@@ -11,6 +11,13 @@
  * Straehne in tag.js) - nur vollstaendige Wochen innerhalb des Zeitraums
  * zaehlen mit, sonst wuerde eine angeschnittene erste Woche das Ergebnis
  * verzerren.
+ *
+ * DER ZEITRAUM BEGINNT FRUEHESTENS BEIM ANLEGEN.
+ * Sonst zaehlen Tage in den Nenner, an denen es die Gewohnheit noch gar nicht
+ * gab: eine vier Tage alte Gewohnheit stuende bei "4 von 30 Tage (13 %)" und
+ * koennte die 100 % erst in einem Monat erreichen. Der heutige Tag zaehlt
+ * dagegen bewusst mit - er ist einfach noch nicht erledigt, und morgen zaehlt
+ * er richtig.
  */
 
 import { json } from "../../_lib/antwort.js";
@@ -66,9 +73,18 @@ export async function onRequestGet({ request, env }) {
     }
 
     const ergebnis = gewohnheiten.map((g) => {
+      // Frueher als das Anlegen faengt kein Zeitraum an (siehe oben) - mit
+      // einer Ausnahme: nachgetragene Tage duerfen aelter sein als die
+      // Gewohnheit selbst (im Verlauf geht Nachtragen beliebig weit zurueck).
+      // Wer eine Woche nachtraegt, soll sie auch in der Quote wiederfinden.
+      const angelegt = String(g.created_at || "").slice(0, 10);
+      let beginn = angelegt > von ? angelegt : von;
+      const eigeneTage = Object.keys(logsVon[g.id] || {}).sort();
+      if (eigeneTage.length && eigeneTage[0] < beginn) beginn = eigeneTage[0];
+
       if (g.rhythmus === "x_pro_woche") {
-        let wocheStart = montagVon(von);
-        if (wocheStart < von) wocheStart = tagPlus(wocheStart, 7);
+        let wocheStart = montagVon(beginn);
+        if (wocheStart < beginn) wocheStart = tagPlus(wocheStart, 7);
         let wochenGesamt = 0;
         let wochenErfuellt = 0;
         while (tagPlus(wocheStart, 6) <= heute) {
@@ -85,7 +101,7 @@ export async function onRequestGet({ request, env }) {
 
       let geplant = 0;
       let erledigt = 0;
-      for (let d = von; d <= heute; d = tagPlus(d, 1)) {
+      for (let d = beginn; d <= heute; d = tagPlus(d, 1)) {
         if (g.rhythmus === "wochentage" && !istGeplant(d, g.wochentage_maske)) continue;
         geplant++;
         if (warErledigt(g, d)) erledigt++;

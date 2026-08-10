@@ -94,6 +94,21 @@ nachträglich gelb.
 Die Art einer Gewohnheit (abhaken / mit Zielmenge) lässt sich nachträglich nicht
 ändern. Das würde die ganze Historie neu bewerten. Leg in dem Fall eine neue an.
 
+### Statistik
+
+Der Reiter **Statistik** zeigt je Gewohnheit, wie viele der fälligen Tage im
+gewählten Zeitraum (7, 30 oder 90 Tage) erledigt waren. Gezählt wird
+**frühestens ab dem Tag, an dem du die Gewohnheit angelegt hast** — sonst
+stünde eine vier Tage alte Gewohnheit bei „4 von 30 Tage" und könnte die 100 %
+erst in einem Monat erreichen. Trägst du Tage nach, die älter sind als die
+Gewohnheit selbst, zählen die trotzdem mit.
+
+Der heutige Tag zählt mit, auch wenn du ihn noch nicht abgehakt hast. Er ist
+eben noch offen — morgen zählt er richtig.
+
+Bei „X Mal die Woche" werden ganze Wochen gezählt, und nur vollständige: eine
+angeschnittene Woche am Rand des Zeitraums würde das Ergebnis verzerren.
+
 ### Aufräumen
 
 **Archivieren** nimmt eine Gewohnheit aus der Tagesansicht, die Historie bleibt.
