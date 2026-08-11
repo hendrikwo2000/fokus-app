@@ -77,7 +77,13 @@ function nochOffen(gewohnheit, tageDerGewohnheit, heute) {
   // Kein Eintrag heisst offen - und zwar ohne status() zu fragen: bei einer
   // Obergrenze waere die 0 dort "erledigt" (siehe _lib/tag.js), ein noch gar
   // nicht angefasster Tag wuerde also faelschlich als geschafft gelten.
-  if (!heutiger) return true;
+  //
+  // AUSSER bei einer Obergrenze: die verlangt nichts, solange nichts
+  // eingetragen ist. Ab morgen zaehlt der Tag ohnehin von allein als
+  // eingehalten (stillerTagZaehlt) - abends daran zu erinnern hiesse, eine
+  // Bestaetigung einzufordern, die die App sich selbst gibt. Spiegel von
+  // ruhtHeute() in app.js.
+  if (!heutiger) return !istObergrenze(gewohnheit);
   const st = status(gewohnheit.typ, heutiger.menge, heutiger.ziel, gewohnheit.richtung);
   return st === "offen" || st === "teilweise";
 }

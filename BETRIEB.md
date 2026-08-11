@@ -178,8 +178,9 @@ Erfüllungsquote schlechter aus als die Wirklichkeit.
 
 Zwei Schranken, ohne die die Regel Unsinn ergibt:
 
-- **Nur die Vergangenheit.** Heute bleibt offen, sonst wäre der Tag grün, bevor
-  er vorbei ist, und die Erinnerung hätte nie etwas zu melden.
+- **Nur die Vergangenheit.** Heute wird nicht grün, sonst wäre der Tag fertig,
+  bevor er vorbei ist — ein Ausrutscher am Abend müsste ihn nachträglich wieder
+  rot machen. Heute *ruht* stattdessen, siehe unten.
 - **Erst ab `gewohnheiten.created_at`.** Ohne das liefe die Straehne einer
   gestern angelegten Gewohnheit über das volle 730-Tage-Fenster zurück.
   Deshalb steht `created_at` jetzt in jedem SELECT, der Tage bewertet, und als
@@ -196,6 +197,34 @@ Kalender und Wochenfortschritt.
 ab dem Anlegetag durchgehend grün — der Tooltip unterscheidet „nichts
 eingetragen, also im Rahmen" von einem echten Eintrag.
 
+### Heute ruht eine Obergrenze, bis etwas drinsteht
+
+`ruhtHeute()` in `app.js`: eine Obergrenze **ohne Eintrag am heutigen Tag** ist
+weder offen noch erledigt. Sie hat kein Soll, das man erfüllen müsste — „keine
+Zigarette" ist der Normalfall, kein Tagwerk. Und ab morgen zählt der Tag
+ohnehin von allein als eingehalten (siehe oben); ihn heute als offen zu führen
+hieß, jeden Abend zu bestätigen, was die App sich am nächsten Tag selbst gibt.
+
+Die Karte bleibt in der Liste stehen — ein Ausrutscher muss sich eintragen
+lassen, und der Haken trägt weiter die 0 ein, wenn man den Tag ausdrücklich
+abschließen will. Sie zählt nur nirgends mit:
+
+| Wo | Folge |
+| --- | --- |
+| Tagesbilanz über der Liste | fällt aus Zähler **und** Nenner |
+| Zahl am App-Icon | `offeneGewohnheitenHeute()` überspringt sie |
+| Abenderinnerung | `nochOffen()` in `push/pruefen.js` gibt `false` zurück |
+| Karte | Zustand `ruht`: grauer Rand, Balken in `--line` statt Gelb |
+
+**Preis, den man kennen muss:** Bei Obergrenzen meldet sich die Erinnerung
+nicht mehr. Wer sie will, muss den Tag von Hand abschließen. Hendriks
+Entscheidung vom 11.08.2026, gefragt — die Alternativen waren „alles lassen"
+(tägliche Bestätigung) und „heute sofort grün".
+
+`ruhtHeute()` gilt **nur für heute**. Kalender und Tagesansicht der
+Vergangenheit rechnen unverändert über `stillerTagZaehlt()`, und der heutige
+Kalendertag bleibt dort grau — er wird morgen grün.
+
 ### Eine Obergrenze verschwindet nie aus „Heute"
 
 `x_pro_woche` blendet eine Gewohnheit sonst aus, sobald das Wochenziel erreicht
@@ -208,8 +237,12 @@ war spätestens am Wochenende weg.
 `istHeuteDran()` (`app.js`) und `nochOffen()` (`push/pruefen.js`) fallen bei
 einer Obergrenze deshalb auf die Tagesprüfung durch, genau wie `taeglich`.
 Das Wochenziel bleibt die Messlatte für Fortschrittszeile und Strähne — nur
-nicht mehr dafür, ob die Karte erscheint. Praktische Folge: die Erinnerung
-kommt an jedem Tag, an dem noch nichts eingetragen ist, auch nach dem fünften.
+nicht mehr dafür, ob die Karte erscheint.
+
+Die Karte steht damit die ganze Woche da, verlangt aber nichts: seit dem
+11.08.2026 ruht eine Obergrenze ohne Eintrag (siehe [Heute ruht eine
+Obergrenze](#heute-ruht-eine-obergrenze-bis-etwas-drinsteht)). Vorher kam die
+Erinnerung an jedem Tag ohne Eintrag, auch nach dem fünften — das ist weg.
 
 ### Die Statistik beginnt beim Anlegen
 
@@ -227,6 +260,13 @@ zählt rückwirkend, eine Annahme nicht.
 
 Der heutige Tag zählt bewusst mit, obwohl er meist noch offen ist. Er ist keine
 Verzerrung, sondern der aktuelle Stand.
+
+**Passt keine volle Woche in den Zeitraum**, zeigt eine `x_pro_woche`-Gewohnheit
+statt einer Wochenquote den Stand der laufenden Woche (`laufendeWoche: true` in
+der Antwort, Einheit `Tage`). Betrifft vor allem „7 Tage" — dort liegt nie eine
+volle Mo-So-Woche —, außerdem frisch angelegte Gewohnheiten in jedem Zeitraum.
+Vorher stand da „Noch keine geplanten Wochen in diesem Zeitraum": richtig, aber
+für den 7-Tage-Blick unbrauchbar.
 
 ### `ziel_damals`
 
@@ -295,6 +335,13 @@ Stunden. Eine 25-Minuten-Sitzung kann keine 300 Fokusminuten hervorbringen.
 Nur Arbeitsphasen werden geloggt, keine Pausen-Automatik. Die Wochenstatistik
 zählt damit echte Fokusminuten.
 
+**„Schnitt/Woche" beginnt bei der ersten Woche mit Fokusminuten**, nicht am
+Anfang des Acht-Wochen-Fensters. Wochen davor gab es die App noch nicht oder es
+lief nichts; sie als Nullen mitzumitteln drückte den Schnitt (297 Minuten auf
+acht Wochen ergaben 37, obwohl in dreien gar nichts stattfand). Ruhige Wochen
+**nach** dem Start zählen weiter mit, die sind echt. Die laufende Woche bleibt
+draußen — außer sie ist die einzige, dann steht sie da.
+
 **Stopp fragt nach, sobald mindestens eine Minute gelaufen ist.** Eine geloggte
 Sitzung lässt sich nachträglich nicht mehr ändern oder löschen — ein Fehlgriff
 neben „Pause" bliebe also für immer in der Wochenstatistik. Unter einer Minute
@@ -359,6 +406,11 @@ Tages-Status in `app.js`, serverseitig gespiegelt in
 `wochentage` nur an geplanten Tagen, `x_pro_woche` solange das Wochenziel
 diese Woche noch nicht erreicht ist) **und** noch nicht erledigt (Status
 `offen` oder `teilweise`).
+
+**Ausnahme Obergrenze:** ohne Eintrag am heutigen Tag gilt sie nicht als offen
+und löst keine Erinnerung aus — siehe [Heute ruht eine
+Obergrenze](#heute-ruht-eine-obergrenze-bis-etwas-drinsteht). `nochOffen()` und
+`ruhtHeute()` in `app.js` müssen hier dieselbe Regel anwenden.
 
 **Eigene Tabelle `fokus_push_subscriptions`, nicht ToDo's
 `push_subscriptions`.** Ein Push-Endpunkt ist pro Browser-Herkunft eindeutig

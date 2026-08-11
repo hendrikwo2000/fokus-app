@@ -65,6 +65,14 @@
        steht. Ohne diese Zeile sieht das aus, als waere die Gewohnheit weg. -->
   <p class="wochen-fertig" id="wochenFertig" hidden></p>
 
+  <!-- Bearbeiten liegt bewusst auf der Karte selbst und nicht auf einem
+       eigenen Knopf (der waere beim Abhaken nur ein zweites Ziel). Dann muss
+       aber irgendwo stehen, dass es das gibt - auf dem Handy gibt es keinen
+       Tooltip, der es verraet. -->
+  <p class="wochen-fertig" id="bearbeitenHinweis" hidden>
+    Zum Bearbeiten zweimal auf eine Gewohnheit tippen.
+  </p>
+
   <div style="margin-top:14px; text-align:center;">
     <button class="btn" id="neueGewohnheitBtn">＋ Gewohnheit</button>
   </div>
@@ -430,7 +438,11 @@
   </div>
 </div>
 
-<div class="snackbar" id="snackbar"><span id="snackbarText"></span></div>
+<div class="snackbar" id="snackbar">
+  <span id="snackbarText"></span>
+  <!-- Nur bei Meldungen, die etwas zurueckzunehmen haben (siehe melde()). -->
+  <button type="button" id="snackbarAktion" hidden></button>
+</div>
 
 <script src="app.js"></script>
 </body>

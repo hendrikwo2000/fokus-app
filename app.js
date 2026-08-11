@@ -70,12 +70,22 @@ function formatDatum(iso) {
   return `${t}.${m}.${j}`;
 }
 
-// Zahl mit passender Einheit: "1 Tag", "2 Tage", "1 Woche", "3 Wochen".
-// Uebergeben wird die Mehrzahl - sie ist die haeufigere Form und steht so
-// auch in der Antwort von statistik.js.
-const EINZAHL = { Tage: "Tag", Wochen: "Woche" };
-function mitEinheit(zahl, mehrzahl) {
-  return `${zahl} ${zahl === 1 ? (EINZAHL[mehrzahl] || mehrzahl) : mehrzahl}`;
+/**
+ * Zahl mit passender Einheit.
+ *
+ * Zwei Faelle, die im Deutschen auseinandergehen: "🔥 2 Tage" steht fuer sich
+ * (Nominativ), "5 von 14 Tagen" steht hinter "von" (Dativ). Ohne die
+ * Unterscheidung liest sich das eine oder das andere falsch.
+ * Der Schluessel ist die Mehrzahl, weil statistik.js sie so schickt.
+ */
+const EINHEIT_FORMEN = {
+  Tage: { eins: "Tag", viele: "Tage", vieleDativ: "Tagen" },
+  Wochen: { eins: "Woche", viele: "Wochen", vieleDativ: "Wochen" },
+};
+function mitEinheit(zahl, schluessel, dativ = false) {
+  const form = EINHEIT_FORMEN[schluessel];
+  if (!form) return `${zahl} ${schluessel}`;
+  return `${zahl} ${zahl === 1 ? form.eins : (dativ ? form.vieleDativ : form.viele)}`;
 }
 
 function wochentagVon(iso) {
@@ -298,13 +308,23 @@ function vergissStand() {
   warteschlange = [];
 }
 
+/**
+ * Kurzmeldung unten. `aktion` haengt einen Knopf daran ({ text, fn }) - dafuer
+ * bleibt sie laenger stehen, weil man sie erst lesen und dann treffen muss.
+ */
 let snackTimer = null;
-function melde(text) {
+function melde(text, aktion) {
   const bar = $("snackbar");
+  const knopf = $("snackbarAktion");
   $("snackbarText").textContent = text;
+  knopf.hidden = !aktion;
+  knopf.textContent = aktion ? aktion.text : "";
+  knopf.onclick = aktion
+    ? () => { clearTimeout(snackTimer); bar.classList.remove("show"); aktion.fn(); }
+    : null;
   bar.classList.add("show");
   clearTimeout(snackTimer);
-  snackTimer = setTimeout(() => bar.classList.remove("show"), 3200);
+  snackTimer = setTimeout(() => bar.classList.remove("show"), aktion ? 6000 : 3200);
 }
 
 /* ------------------------------------------------------------ Anmeldung */
@@ -644,6 +664,27 @@ function stillerTagZaehlt(gewohnheit, datum) {
   return !gewohnheit.angelegtAm || datum >= gewohnheit.angelegtAm;
 }
 
+/**
+ * Verlangt diese Gewohnheit heute gar nichts?
+ *
+ * Nur eine Obergrenze, und nur solange nichts eingetragen ist. Sie hat kein
+ * Soll, das man erfuellen muesste - "keine Zigarette" ist der Normalfall, kein
+ * Tagwerk. Ab morgen zaehlt der Tag ohnehin von allein als eingehalten
+ * (stillerTagZaehlt), ihn heute als offen zu fuehren hiess, jeden Abend zu
+ * bestaetigen, dass nichts war.
+ *
+ * Die Karte bleibt trotzdem stehen: ein Ausrutscher muss sich eintragen
+ * lassen. Sie zaehlt nur nicht mehr mit - nicht in der Tagesbilanz, nicht in
+ * der Zahl am App-Icon und nicht in der Erinnerung (dort gespiegelt in
+ * nochOffen() in functions/api/push/pruefen.js).
+ *
+ * Hendriks Entscheidung vom 10.08.2026, gefragt: die Alternativen waren
+ * "alles lassen" und "heute sofort gruen".
+ */
+function ruhtHeute(gewohnheit) {
+  return istObergrenze(gewohnheit) && !tagVon(gewohnheit.id, state.heute);
+}
+
 // Status eines Tages fuer die Anzeige: der Eintrag, wenn es einen gibt, sonst
 // "erledigt" bei einer stillen Obergrenze und ansonsten "offen".
 function zustandVon(gewohnheit, datum) {
@@ -686,7 +727,7 @@ function istHeuteDran(gewohnheit) {
 function offeneGewohnheitenHeute() {
   let n = 0;
   for (const g of state.gewohnheiten.filter(x => !x.archiviert)) {
-    if (!istHeuteDran(g)) continue;
+    if (!istHeuteDran(g) || ruhtHeute(g)) continue;
     const tag = tagVon(g.id, state.heute);
     const st = tag ? tag.status : "offen";
     if (st === "offen" || st === "teilweise") n++;
@@ -719,16 +760,19 @@ function aktualisiereBadge() {
  */
 function renderTagesbilanz(aktive) {
   const bilanz = $("tagesBilanz");
-  const erledigt = aktive.filter(g => zustandVon(g, state.heute) === "erledigt").length;
-  const fertig = aktive.length > 0 && erledigt === aktive.length;
+  // Ruhende Obergrenzen zaehlen weder oben noch unten mit - sonst stuende hier
+  // "5 von 8", obwohl drei davon nichts von einem wollen.
+  const zaehlend = aktive.filter(g => !ruhtHeute(g));
+  const erledigt = zaehlend.filter(g => zustandVon(g, state.heute) === "erledigt").length;
+  const fertig = zaehlend.length > 0 && erledigt === zaehlend.length;
 
-  bilanz.hidden = !aktive.length;
+  bilanz.hidden = !zaehlend.length;
   bilanz.classList.toggle("fertig", fertig);
   $("tagesBilanzText").textContent = fertig
     ? "Alles erledigt"
-    : `${erledigt} von ${aktive.length} erledigt`;
+    : `${erledigt} von ${zaehlend.length} erledigt`;
   $("tagesBilanzBalken").style.width =
-    aktive.length ? `${Math.round(erledigt / aktive.length * 100)}%` : "0%";
+    zaehlend.length ? `${Math.round(erledigt / zaehlend.length * 100)}%` : "0%";
 }
 
 function renderWochenFertig(alleAktiven) {
@@ -752,6 +796,9 @@ function renderHeute() {
   const aktive = alleAktiven.filter(istHeuteDran);
   renderTagesbilanz(aktive);
   renderWochenFertig(alleAktiven);
+  // Ohne Karten gibt es nichts zu bearbeiten - dann waere der Hinweis nur ein
+  // Rat ins Leere.
+  $("bearbeitenHinweis").hidden = !aktive.length;
 
   if (!aktive.length) {
     const p = document.createElement("p");
@@ -767,7 +814,9 @@ function renderHeute() {
   for (const g of aktive) {
     const tag = tagVon(g.id, state.heute);
     const menge = tag ? tag.menge : 0;
-    const zustand = tag ? tag.status : "offen";
+    // "ruht": eine Obergrenze, in die heute noch nichts eingetragen ist -
+    // weder offen noch erledigt, siehe ruhtHeute().
+    const zustand = tag ? tag.status : (ruhtHeute(g) ? "ruht" : "offen");
     // Immer das Ziel DIESES Tages, nie das aktuelle der Gewohnheit. Sonst
     // koennten Balken und Haken auseinanderlaufen, sobald jemand das Ziel
     // aendert - der Status faellt serverseitig ebenfalls gegen ziel_damals.
@@ -903,10 +952,25 @@ function renderHeute() {
     const haken = document.createElement("button");
     haken.className = "haken" + (zustand === "erledigt" ? " an" : "");
     haken.textContent = "✓";
-    haken.title = zustand === "erledigt" ? "Wieder öffnen" : "Als erledigt markieren";
-    haken.onclick = () => {
-      if (zustand === "erledigt") { setzeTag(g, state.heute, 0, obergrenze); return; }
-      setzeTag(g, state.heute, g.typ !== "menge" ? 1 : (obergrenze ? 0 : ziel));
+    haken.title = zustand === "erledigt" ? "Wieder öffnen"
+      : obergrenze ? "Heute nichts davon"
+      : "Als erledigt markieren";
+    haken.onclick = async () => {
+      if (zustand !== "erledigt") {
+        setzeTag(g, state.heute, g.typ !== "menge" ? 1 : (obergrenze ? 0 : ziel));
+        return;
+      }
+      // Der einzige Tipp in der App, der etwas wegnimmt: aus "50 von 60" wird
+      // eine 0, und die 50 sind ohne Rueckfrage weg. Statt eines Dialogs, der
+      // den haeufigen Fall (versehentlich abgehakt) mit einem zweiten Tipp
+      // belastet, gibt es den Weg zurueck hinterher.
+      const vorher = tag;
+      if (!await setzeTag(g, state.heute, 0, obergrenze)) return;
+      if (!vorher) return;
+      melde(`„${g.name}“ wieder offen`, {
+        text: "Rückgängig",
+        fn: () => setzeTag(g, state.heute, vorher.menge),
+      });
     };
     karte.appendChild(haken);
 
@@ -1331,8 +1395,12 @@ async function renderStatistik() {
     }
 
     const quote = Math.round((g.erledigt / g.geplant) * 100);
-    // Die Einheit gehoert zum Nenner: "0 von 1 Tag", "1 von 1 Woche".
-    text.textContent = `${g.erledigt} von ${mitEinheit(g.geplant, g.einheit)} (${quote} %)`;
+    // Die Einheit gehoert zum Nenner und steht hinter "von", also im Dativ:
+    // "0 von 1 Tag", "5 von 14 Tagen", "1 von 1 Woche".
+    // laufendeWoche: statt einer Quote ueber volle Wochen der Stand der
+    // angebrochenen - passiert bei "7 Tage", wo keine volle Woche hineinpasst.
+    text.textContent = `${g.erledigt} von ${mitEinheit(g.geplant, g.einheit, true)}`
+      + (g.laufendeWoche ? " diese Woche" : "") + ` (${quote} %)`;
     zeile.appendChild(text);
     haupt.appendChild(zeile);
 
@@ -1985,20 +2053,64 @@ function renderReihenfolge() {
   aktualisiereEinSubtexte();
 }
 
+/**
+ * Die neue Reihenfolge zum Server schicken - immer die vollstaendige Liste
+ * (siehe functions/api/gewohnheiten/reihenfolge.js).
+ *
+ * Immer nur eine Anfrage unterwegs, und waehrenddessen wird nur der zuletzt
+ * gewuenschte Stand gemerkt: wer viermal schnell auf den Pfeil tippt, soll
+ * nicht vier Anfragen ausloesen, die sich womoeglich in falscher Reihenfolge
+ * ueberholen und die Liste hinterher anders sortieren als auf dem Schirm.
+ */
+let sortierungLaeuft = false;
+let sortierungNachtrag = null;
+async function sendeReihenfolge(ids) {
+  if (sortierungLaeuft) { sortierungNachtrag = ids; return; }
+  sortierungLaeuft = true;
+  const antwort = await api("/api/gewohnheiten/reihenfolge", {
+    method: "PUT",
+    body: JSON.stringify({ ids }),
+  });
+  sortierungLaeuft = false;
+
+  if (!antwort.ok) {
+    // Der Server hat die Reihenfolge nicht uebernommen - dann darf sie auf dem
+    // Schirm auch nicht stehenbleiben.
+    sortierungNachtrag = null;
+    melde(antwort.daten.error || "Sortieren fehlgeschlagen");
+    await neuLaden();
+    renderReihenfolge();
+    return;
+  }
+  if (sortierungNachtrag) {
+    const naechste = sortierungNachtrag;
+    sortierungNachtrag = null;
+    await sendeReihenfolge(naechste);
+  }
+}
+
+/**
+ * Eine Gewohnheit um eine Position verschieben.
+ *
+ * Die Liste springt sofort um, ohne auf den Server zu warten - vorher hing an
+ * jedem Pfeil-Tipp eine Anfrage samt komplettem Neuladen, und eine Gewohnheit
+ * von unten nach oben zu holen hiess achtmal warten.
+ */
 async function verschiebeGewohnheit(von, nach) {
   const aktive = state.gewohnheiten.filter(g => !g.archiviert);
   if (nach < 0 || nach >= aktive.length) return;
   [aktive[von], aktive[nach]] = [aktive[nach], aktive[von]];
 
-  const ids = [...aktive, ...state.gewohnheiten.filter(g => g.archiviert)].map(g => g.id);
-  const antwort = await api("/api/gewohnheiten/reihenfolge", {
-    method: "PUT",
-    body: JSON.stringify({ ids }),
-  });
-  if (!antwort.ok) { melde(antwort.daten.error || "Sortieren fehlgeschlagen"); return; }
-
-  await neuLaden();
+  // Die archivierten haengen hinten dran, damit die Positionen lueckenlos
+  // bleiben, falls eine davon spaeter zurueckgeholt wird.
+  const neu = [...aktive, ...state.gewohnheiten.filter(g => g.archiviert)];
+  state.gewohnheiten = neu;
   renderReihenfolge();
+  renderHeute();
+  renderVerlauf();
+  renderFokusGewohnheiten();
+
+  await sendeReihenfolge(neu.map(g => g.id));
 }
 
 function renderArchiv() {

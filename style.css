@@ -188,6 +188,10 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .gew.erledigt { border-left: 4px solid var(--green); }
 .gew.teilweise { border-left: 4px solid var(--yellow); }
 .gew.offen { border-left: 4px solid var(--leer); }
+/* Obergrenze ohne Eintrag: heute ist nichts zu tun (ruhtHeute in app.js).
+   Bewusst kein eigener Signalton - der Rand soll gerade NICHT nach offener
+   Aufgabe aussehen. */
+.gew.ruht { border-left: 4px solid var(--line); }
 /* Obergrenze ueberschritten (richtung='hoechstens', z.B. Instagram-Minuten
    ueber dem Limit) - eigener Zustand, siehe status() in _lib/tag.js. */
 .gew.ueberschritten { border-left: 4px solid var(--red); }
@@ -228,6 +232,9 @@ button.gew:hover { background: var(--hover); }
 .balken > i { display: block; height: 100%; border-radius: 3px; background: var(--yellow); transition: width .2s; }
 .gew.erledigt .balken > i { background: var(--green); }
 .gew.ueberschritten .balken > i { background: var(--red); }
+/* Volles Budget, aber nichts geleistet - gelb (die Standardfarbe des Balkens)
+   waere hier eine Warnung, wo es nichts zu warnen gibt. */
+.gew.ruht .balken > i { background: var(--line); }
 
 /* Grosses Haekchen fuer binaere Gewohnheiten. Mindestens 44px, damit es am
    Handy sicher zu treffen ist. */
@@ -751,6 +758,12 @@ button.gew:hover { background: var(--hover); }
   position: fixed;
   left: 50%;
   bottom: 24px;
+  /* Ohne width/max-content bleibt ein bei left:50% verankertes fixed-Element
+     auf die halbe Fensterbreite beschraenkt - auf dem Handy brach schon
+     "Ohne Verbindung gemerkt" auf drei Zeilen um, und mit dem
+     Rueckgaengig-Knopf daneben wurde es endgueltig eng. */
+  width: max-content;
+  max-width: calc(100vw - 32px);
   transform: translateX(-50%) translateY(20px);
   background: #2b2f37;
   color: #fff;
@@ -767,3 +780,15 @@ button.gew:hover { background: var(--hover); }
   z-index: 150;
 }
 .snackbar.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+/* Der Weg zurueck, direkt in der Meldung - siehe melde() in app.js. */
+.snackbar button {
+  flex: none;
+  border: 0; background: none;
+  color: #9fb0ff;
+  font: inherit; font-size: 14px; font-weight: 700;
+  padding: 2px 2px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.snackbar button:hover { color: #c3ceff; }
+.snackbar button[hidden] { display: none; }

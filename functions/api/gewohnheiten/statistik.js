@@ -96,6 +96,26 @@ export async function onRequestGet({ request, env }) {
           if (erledigteTage >= (g.wochenziel || 1)) wochenErfuellt++;
           wocheStart = tagPlus(wocheStart, 7);
         }
+
+        // In 7 Tage passt keine volle Mo-So-Woche, und eine frisch angelegte
+        // Gewohnheit hat auch in 30 Tagen noch keine. Dann stand hier bisher
+        // nur "noch keine geplanten Wochen" - richtig, aber unbrauchbar.
+        // Ersatz ist der Stand der laufenden Woche: dieselbe Zahl, die auch
+        // auf der Karte in der Tagesansicht steht.
+        if (wochenGesamt === 0) {
+          const dieseWoche = montagVon(heute);
+          let erledigteTage = 0;
+          for (let i = 0; i < 7; i++) {
+            const d = tagPlus(dieseWoche, i);
+            if (d <= heute && warErledigt(g, d)) erledigteTage++;
+          }
+          return {
+            id: g.id, name: g.name,
+            erledigt: erledigteTage, geplant: g.wochenziel || 1,
+            einheit: "Tage", laufendeWoche: true,
+          };
+        }
+
         return { id: g.id, name: g.name, erledigt: wochenErfuellt, geplant: wochenGesamt, einheit: "Wochen" };
       }
 

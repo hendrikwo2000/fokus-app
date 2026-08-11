@@ -56,12 +56,24 @@ export async function onRequestGet({ request, env }) {
 
     const dieseWoche = wochen[wochen.length - 1].minuten;
     const heuteMin = tage.find(t => t.datum === heute)?.min || 0;
-    // Durchschnitt ueber die abgeschlossenen Wochen - die laufende ist noch
-    // nicht fertig und wuerde den Schnitt jeden Montag kuenstlich druecken.
-    const fertige = wochen.slice(0, -1);
+
+    /* Durchschnitt ueber die abgeschlossenen Wochen - die laufende ist noch
+       nicht fertig und wuerde den Schnitt jeden Montag kuenstlich druecken.
+
+       Gezaehlt wird erst ab der ersten Woche mit Fokusminuten. Vorher liegen
+       im Fenster Wochen, in denen es die App noch gar nicht gab oder in denen
+       nichts lief - die als Nullen mitzumitteln redet die eigene Leistung
+       klein (297 Minuten auf 8 Wochen ergaben 37, obwohl in dreien davon
+       ueberhaupt nichts stattfand). Ruhige Wochen NACH dem Start zaehlen
+       weiter mit, die sind echt.
+
+       Bleibt danach keine abgeschlossene Woche uebrig - erste Woche
+       ueberhaupt -, steht die laufende da. Sie ist dann der ganze Bestand. */
+    const ersteMitMinuten = wochen.findIndex(w => w.minuten > 0);
+    const fertige = ersteMitMinuten === -1 ? [] : wochen.slice(ersteMitMinuten, -1);
     const schnitt = fertige.length
       ? Math.round(fertige.reduce((s, w) => s + w.minuten, 0) / fertige.length)
-      : 0;
+      : dieseWoche;
 
     return json({
       einstellungen: { arbeitMin },
