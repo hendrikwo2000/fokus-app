@@ -25,9 +25,7 @@ const state = {
 // Welche Gewohnheit und welcher Monat im Kalender-Verlauf gerade zu sehen
 // sind. gewohnheitId faellt in renderVerlauf() auf die erste aktive
 // Gewohnheit zurueck, sobald sie leer ist oder ins Archiv/Nirwana zeigt.
-// `modus` schaltet zwischen dem Monatskalender einer Gewohnheit und der Liste
-// aller Gewohnheiten eines Tages um; `tag` ist das Datum der zweiten Ansicht.
-const verlauf = { gewohnheitId: null, monat: "", modus: "gewohnheit", tag: "" };
+const verlauf = { gewohnheitId: null, monat: "" };
 
 // Zeitraum der Statistik-Ansicht, in Tagen (7/30/90).
 const statistik = { tage: 30 };
@@ -610,7 +608,6 @@ async function start() {
   $("lock").classList.add("hidden");
   $("reiter").hidden = false;
   $("einstellungenBtn").hidden = false;
-  renderFokusGewohnheiten();
   zeigeAnsicht(aktiveAnsicht);
   // Was beim letzten Mal ohne Netz liegen geblieben ist, geht jetzt raus.
   liefereNach();
@@ -788,6 +785,28 @@ function renderWochenFertig(alleAktiven) {
   }
 }
 
+/**
+ * Der Stift-Knopf, der eine Gewohnheit zum Bearbeiten oeffnet.
+ *
+ * Frueher lag das Bearbeiten auf einem Doppelklick auf die Karte. Das ging an
+ * beiden Enden schief: am PC markierte der erste Klick den Namen, bevor der
+ * Dialog aufging, und auf dem Handy fing der Browser den Doppeltipp als Zoom
+ * ab, sodass es dort ueberhaupt keinen Weg zum Dialog gab. Ein sichtbarer
+ * Knopf braucht ausserdem keinen Hinweistext, der erklaert, dass es ihn gibt.
+ *
+ * Dieselbe Form in der Heute-Liste und im Verlauf - es ist dieselbe Handlung.
+ */
+function stiftKnopf(gewohnheit) {
+  const knopf = document.createElement("button");
+  knopf.type = "button";
+  knopf.className = "stift";
+  knopf.textContent = "✎";
+  knopf.title = "Bearbeiten";
+  knopf.setAttribute("aria-label", `${gewohnheit.name} bearbeiten`);
+  knopf.onclick = () => oeffneGewohnheitDialog(gewohnheit);
+  return knopf;
+}
+
 function renderHeute() {
   const liste = $("heuteListe");
   liste.replaceChildren();
@@ -796,9 +815,6 @@ function renderHeute() {
   const aktive = alleAktiven.filter(istHeuteDran);
   renderTagesbilanz(aktive);
   renderWochenFertig(alleAktiven);
-  // Ohne Karten gibt es nichts zu bearbeiten - dann waere der Hinweis nur ein
-  // Rat ins Leere.
-  $("bearbeitenHinweis").hidden = !aktive.length;
 
   if (!aktive.length) {
     const p = document.createElement("p");
@@ -830,19 +846,17 @@ function renderHeute() {
     // nur diese Karten tragen Minus/Zahl/Plus und brauchen die zweite Zeile.
     karte.className = `gew ${zustand}` + (g.typ === "menge" ? " mit-menge" : "");
 
-    // Bearbeiten sitzt auf Name+Zeile, nicht auf einem eigenen Knopf - der
-    // waere in der Zeile nur ein weiteres Ziel, das man beim Abhaken
-    // versehentlich trifft. Zahlenfeld und Haken sind bewusst KEINE Kinder
-    // von haupt (siehe unten), ein Doppelklick dort loest normales Verhalten
-    // aus (z. B. Text-Selektion), nicht den Dialog.
     const haupt = document.createElement("div");
     haupt.className = "gew-haupt";
-    haupt.title = "Doppelklick zum Bearbeiten";
-    haupt.ondblclick = () => oeffneGewohnheitDialog(g);
 
+    // Der Stift sitzt direkt hinter dem Namen und nicht am rechten Kartenrand:
+    // dort waere er der Nachbar des Hakens, und der wird jeden Tag getroffen.
     const name = document.createElement("div");
     name.className = "gew-name";
-    name.textContent = g.name;
+    const nameText = document.createElement("span");
+    nameText.textContent = g.name;
+    name.appendChild(nameText);
+    name.appendChild(stiftKnopf(g));
     haupt.appendChild(name);
 
     const zeile = document.createElement("div");
@@ -1036,115 +1050,12 @@ async function setzeTag(gewohnheit, datum, menge, loeschen = false) {
    fruehere Raster (eine Zeile pro Gewohnheit, alle gleichzeitig) - bei mehr
    als ein, zwei Gewohnheiten wurden die Zellen darin zu klein zum Treffen.
 
-   Dazu die Gegenrichtung: ein TAG mit allen Gewohnheiten. Der Kalender ist
-   richtig, wenn man eine Gewohnheit im Verlauf sehen will - war man ein paar
-   Tage nicht in der App, klickt man sich darin aber durch jede einzeln. */
+   Es gab hier zeitweise eine zweite Blickrichtung ("Nach Tag": ein Tag, alle
+   Gewohnheiten) mit einem Umschalter darueber. Die ist wieder raus - der
+   Umschalter stand ueber jedem Kalenderaufruf, fuer eine Ansicht, die kaum
+   benutzt wurde. Nachtragen laeuft ueber die Kalenderzellen. */
 
 function renderVerlauf() {
-  const nachTag = verlauf.modus === "tag";
-  for (const knopf of $("verlaufModus").querySelectorAll("button")) {
-    knopf.setAttribute("aria-selected", String(knopf.dataset.modus === verlauf.modus));
-  }
-  $("verlaufGewohnheit").hidden = nachTag;
-  $("verlaufTag").hidden = !nachTag;
-  if (nachTag) renderTagListe();
-  else renderNachGewohnheit();
-}
-
-for (const knopf of $("verlaufModus").querySelectorAll("button")) {
-  knopf.onclick = () => { verlauf.modus = knopf.dataset.modus; renderVerlauf(); };
-}
-
-/**
- * Ein Tag, alle an ihm faelligen Gewohnheiten. Nicht geplante Wochentage
- * tauchen gar nicht erst auf - genauso wie in "Heute", und der Kalender dimmt
- * sie aus demselben Grund.
- */
-function renderTagListe() {
-  if (!verlauf.tag) verlauf.tag = state.heute;
-  if (verlauf.tag > state.heute) verlauf.tag = state.heute;
-
-  $("tagUeberschrift").textContent = verlauf.tag === state.heute
-    ? "Heute"
-    : `${wochentagVon(verlauf.tag)}, ${formatDatum(verlauf.tag)}`;
-  $("tagZurueck").disabled = verlauf.tag <= state.historieAb;
-  $("tagVor").disabled = verlauf.tag >= state.heute;
-
-  const liste = $("tagListe");
-  liste.replaceChildren();
-
-  const faellig = state.gewohnheiten.filter(g => !g.archiviert && istGeplant(g, verlauf.tag));
-  if (!faellig.length) {
-    const p = document.createElement("p");
-    p.className = "leer-hinweis";
-    p.textContent = "An diesem Tag ist keine Gewohnheit dran.";
-    liste.appendChild(p);
-    return;
-  }
-
-  for (const g of faellig) {
-    const tag = tagVon(g.id, verlauf.tag);
-    const zustand = zustandVon(g, verlauf.tag);
-
-    // Die ganze Karte ist der Knopf: hier gibt es genau eine Handlung, und ein
-    // eigener kleiner Knopf daneben waere auf dem Handy nur schwerer zu treffen.
-    const karte = document.createElement("button");
-    karte.type = "button";
-    karte.className = `gew ${zustand}`;
-
-    const haupt = document.createElement("div");
-    haupt.className = "gew-haupt";
-
-    const name = document.createElement("div");
-    name.className = "gew-name";
-    name.textContent = g.name;
-    haupt.appendChild(name);
-
-    // Wie im Kalender: an einem Tag vor dem Anlegen ist nichts versaeumt
-    // worden. Eintragen bleibt trotzdem moeglich, deshalb nur der Zusatz und
-    // keine gesperrte Karte.
-    const vorAnlegen = !tag && !!g.angelegtAm && verlauf.tag < g.angelegtAm;
-
-    const zeile = document.createElement("div");
-    zeile.className = "gew-zeile";
-    const text = document.createElement("span");
-    if (g.typ === "menge") {
-      const ziel = tag ? tag.ziel : g.zielmenge;
-      text.textContent = mengeText(g, tag ? tag.menge : 0, ziel);
-    } else {
-      text.textContent = vorAnlegen ? "" : (zustand === "erledigt" ? "erledigt" : "offen");
-    }
-    if (text.textContent) zeile.appendChild(text);
-    if (vorAnlegen) {
-      const hinweis = document.createElement("span");
-      hinweis.textContent = "damals noch nicht angelegt";
-      zeile.appendChild(hinweis);
-    }
-    // Ein stiller Tag einer Obergrenze ist gruen, ohne dass etwas eingetragen
-    // waere. Ohne diesen Zusatz saehe er aus wie ein bestaetigter Tag.
-    if (!tag && zustand === "erledigt" && stillerTagZaehlt(g, verlauf.tag)) {
-      const still = document.createElement("span");
-      still.textContent = "nichts eingetragen";
-      zeile.appendChild(still);
-    }
-    haupt.appendChild(zeile);
-
-    karte.appendChild(haupt);
-
-    const haken = document.createElement("span");
-    haken.className = "haken" + (zustand === "erledigt" ? " an" : "");
-    haken.textContent = zustand === "erledigt" ? "✓" : "";
-    karte.appendChild(haken);
-
-    karte.onclick = () => oeffneTagDialog(g, verlauf.tag);
-    liste.appendChild(karte);
-  }
-}
-
-$("tagZurueck").onclick = () => { verlauf.tag = tagPlus(verlauf.tag, -1); renderTagListe(); };
-$("tagVor").onclick = () => { verlauf.tag = tagPlus(verlauf.tag, 1); renderTagListe(); };
-
-function renderNachGewohnheit() {
   const aktive = state.gewohnheiten.filter(g => !g.archiviert);
   if (!aktive.length) {
     verlauf.gewohnheitId = null;
@@ -1181,18 +1092,19 @@ function renderKalWahl() {
     const knopf = document.createElement("button");
     knopf.type = "button";
     knopf.textContent = g.name;
-    knopf.title = "Doppelklick zum Bearbeiten";
-    knopf.setAttribute("aria-selected", String(g.id === verlauf.gewohnheitId));
+    const gewaehlt = g.id === verlauf.gewohnheitId;
+    knopf.setAttribute("aria-selected", String(gewaehlt));
     knopf.onclick = () => {
       verlauf.gewohnheitId = g.id;
       renderKalWahl();
       renderKalender();
     };
-    // Gewohnheiten, die heute/diese Woche nicht dran sind, tauchen nur hier
-    // auf (renderHeute() blendet sie aus) - ohne das waeren sie ueberhaupt
-    // nicht mehr bearbeit- oder archivierbar.
-    knopf.ondblclick = () => oeffneGewohnheitDialog(g);
     wahl.appendChild(knopf);
+    // Der Stift gehoert zur gewaehlten Gewohnheit und steht deshalb direkt
+    // neben ihr, nicht irgendwo am Rand. Und er muss hier sein: Gewohnheiten,
+    // die heute nicht dran sind, tauchen in "Heute" gar nicht auf - ohne
+    // diesen Knopf waeren sie nicht mehr bearbeit- oder archivierbar.
+    if (gewaehlt) wahl.appendChild(stiftKnopf(g));
   }
 }
 
@@ -1441,43 +1353,9 @@ function alsUhr(sekunden) {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-/**
- * Die Auswahl "Zaehlt auf". Nur aktive Gewohnheiten, und keine Obergrenzen -
- * Fokusminuten auf ein Limit zu buchen hiesse, sich fuers Arbeiten einen
- * schlechteren Tag einzutragen. Der Server prueft dasselbe nochmal.
- *
- * Wird nicht im Sekundentakt neu gebaut, sondern nur, wenn sich der Bestand
- * geaendert haben kann - sonst risse es dem Nutzer die Liste unter dem Finger weg.
- */
-function renderFokusGewohnheiten() {
-  const wahl = $("fokusGewohnheit");
-  const vorher = wahl.value;
-  wahl.replaceChildren();
-
-  const leer = document.createElement("option");
-  leer.value = "";
-  leer.textContent = "nichts";
-  wahl.appendChild(leer);
-
-  for (const g of state.gewohnheiten) {
-    if (g.archiviert || istObergrenze(g)) continue;
-    const option = document.createElement("option");
-    option.value = g.id;
-    option.textContent = g.name;
-    wahl.appendChild(option);
-  }
-  // Die vorherige Wahl halten, solange es sie noch gibt.
-  wahl.value = [...wahl.options].some(o => o.value === vorher) ? vorher : "";
-}
-
 function renderFokus() {
   const laeuft = !!fokus.offen;
 
-  // Waehrend einer Sitzung gesperrt: die Buchung haengt an der Sitzung, ein
-  // Umstellen mittendrin waere eine stille Umbuchung. Dafuer zeigt die Auswahl
-  // dann, worauf die laufende Sitzung geht.
-  $("fokusGewohnheit").disabled = laeuft;
-  if (laeuft) $("fokusGewohnheit").value = fokus.offen.gewohnheitId || "";
   const geplantSek = (laeuft ? fokus.offen.geplanteMin : fokus.arbeitMin) * 60;
   const rest = laeuft ? geplantSek - verstrichen() : geplantSek;
 
@@ -1632,14 +1510,11 @@ $("startBtn").onclick = async () => {
 
   const antwort = await api("/api/fokus/start", {
     method: "POST",
-    body: JSON.stringify({ heute: heuteStr(), gewohnheitId: $("fokusGewohnheit").value || null }),
+    body: JSON.stringify({ heute: heuteStr() }),
   });
   if (!antwort.ok) { melde(antwort.daten.error || "Start fehlgeschlagen"); return; }
   if (antwort.daten.vorherBeendet) {
-    const v = antwort.daten.vorherBeendet;
-    melde(`Vorherige Sitzung mit ${v.echteMin} Min. abgeschlossen`);
-    // Die alte Sitzung kann auf eine Gewohnheit gebucht gewesen sein.
-    if (v.gutschrift) { await neuLaden(); meldeGutschrift(v.gutschrift); }
+    melde(`Vorherige Sitzung mit ${antwort.daten.vorherBeendet.echteMin} Min. abgeschlossen`);
   }
   uebernimmSitzung(antwort.daten.offen);
   renderFokus();
@@ -1679,29 +1554,10 @@ async function beendeSitzung(durchgelaufen) {
   const s = antwort.daten.sitzung;
   uebernimmSitzung(null);
   await ladeFokus();     // Statistik nachziehen
-  // War die Sitzung auf eine Gewohnheit gebucht, steht deren Tag jetzt anders
-  // in der Datenbank als im geladenen Bestand.
-  if (s && s.gutschrift) await neuLaden();
   renderFokus();
   if (!s) return;
   if (durchgelaufen) meldeFertig(s.echteMin);
   else melde(`Abgebrochen nach ${s.echteMin} von ${s.geplanteMin} Minuten`);
-  if (s.gutschrift) meldeGutschrift(s.gutschrift);
-}
-
-// Eigene Meldung nach der Fertig-Meldung: beide gleichzeitig gaeben nur eine zu
-// sehen (melde() ueberschreibt sich selbst), und die Gutschrift ist das, was
-// man nachher in der Tagesansicht wiederfinden soll.
-function meldeGutschrift(g) {
-  setTimeout(() => {
-    // Immer "Min", nie die Einheit der Gewohnheit: gutgeschrieben werden
-    // Fokusminuten. Steht die Gewohnheit in Glaesern oder Seiten, passt die
-    // Buchung inhaltlich nicht - dann soll die Meldung das auch zeigen, statt
-    // aus 25 Minuten stillschweigend "25 Glaeser" zu machen.
-    melde(g.typ === "binaer"
-      ? `„${g.name}“ abgehakt`
-      : `${g.gutgeschrieben} Min auf „${g.name}“ — jetzt ${g.menge}`);
-  }, 3400);
 }
 
 // Zurueck aus dem Hintergrund: Serverstand holen. Ein schlafender Tab bekommt
@@ -2108,7 +1964,6 @@ async function verschiebeGewohnheit(von, nach) {
   renderReihenfolge();
   renderHeute();
   renderVerlauf();
-  renderFokusGewohnheiten();
 
   await sendeReihenfolge(neu.map(g => g.id));
 }
@@ -2244,7 +2099,6 @@ async function neuLaden() {
   if (wo) { zeigeGesperrt(wo); return; }
   renderHeute();
   renderVerlauf();
-  renderFokusGewohnheiten();
 }
 
 function zeigeAnsicht(name) {

@@ -31,22 +31,6 @@ export async function onRequestPost({ request, env }) {
       return json({ error: `Die Dauer muss zwischen ${MIN_DAUER} und ${MAX_DAUER} Minuten liegen.` }, 400);
     }
 
-    // Optional: auf diese Gewohnheit werden die Minuten beim Beenden gebucht.
-    // Eine Obergrenze ist ausgeschlossen - Fokusminuten auf ein Limit zu buchen
-    // hiesse, sich fuer konzentriertes Arbeiten einen schlechteren Tag
-    // einzutragen. Archivierte genauso wenig: die sind aus dem Alltag raus.
-    const gewohnheitId = String(body?.gewohnheitId || "") || null;
-    if (gewohnheitId) {
-      const g = await env.DB.prepare(
-        "SELECT typ, richtung, archiviert FROM gewohnheiten WHERE id = ? AND user_id = ?"
-      ).bind(gewohnheitId, nutzerId).first();
-      if (!g) return json({ error: "Gewohnheit nicht gefunden" }, 404);
-      if (g.archiviert) return json({ error: "Diese Gewohnheit ist archiviert." }, 400);
-      if (g.typ === "menge" && g.richtung === "hoechstens") {
-        return json({ error: "Auf eine Obergrenze lassen sich keine Fokusminuten buchen." }, 400);
-      }
-    }
-
     // Eine noch offene Sitzung sauber abschliessen, statt sie liegen zu lassen.
     // Sonst haetten wir zwei offene, und "die eine laufende Sitzung" waere eine
     // Luege - beendeSitzung deckelt sie ohnehin auf ihre geplante Dauer.
@@ -54,11 +38,14 @@ export async function onRequestPost({ request, env }) {
     let beendet = null;
     if (alt) beendet = await beendeSitzung(env, alt);
 
+    // Die Spalte gewohnheit_id gibt es in der Tabelle noch (siehe
+    // migration-sitzung-gewohnheit.sql), beschrieben wird sie nicht mehr:
+    // "Zaehlt auf" ist raus. Sie bleibt leer und stoert dort niemanden.
     const id = crypto.randomUUID();
     await env.DB.prepare(
-      `INSERT INTO fokus_sitzungen (id, user_id, gestartet_am, datum, geplante_min, gewohnheit_id)
-       VALUES (?, ?, datetime('now'), ?, ?, ?)`
-    ).bind(id, nutzerId, heute, geplant, gewohnheitId).run();
+      `INSERT INTO fokus_sitzungen (id, user_id, gestartet_am, datum, geplante_min)
+       VALUES (?, ?, datetime('now'), ?, ?)`
+    ).bind(id, nutzerId, heute, geplant).run();
 
     const neu = await offeneSitzung(env, nutzerId);
     return json({

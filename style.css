@@ -196,16 +196,31 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
    ueber dem Limit) - eigener Zustand, siehe status() in _lib/tag.js. */
 .gew.ueberschritten { border-left: 4px solid var(--red); }
 
-/* touch-action: manipulation schaltet HIER den Doppeltipp-Zoom ab, damit der
-   Doppeltipp zum Bearbeiten (app.js) ankommt. Nur auf diesem Element - der
-   Rest der Seite bleibt zoombar, deshalb darf die viewport-Angabe in
-   index.html den Zoom erlauben. Aufziehen mit zwei Fingern geht auch hier. */
 .gew-haupt {
   flex: 1; min-width: 0;
   display: flex; flex-direction: column; gap: 5px;
-  touch-action: manipulation;
 }
-.gew-name { font-weight: 600; overflow-wrap: anywhere; }
+.gew-name { font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.gew-name > span { min-width: 0; overflow-wrap: anywhere; }
+
+/* Bearbeiten-Knopf, direkt hinter dem Namen. 36 px Trefferflaeche wie
+   Plus/Minus - aber mit negativem Rand oben und unten, sonst waere jede Karte
+   allein wegen des Stifts 16 px hoeher. Zu sehen ist nur das Zeichen. */
+.stift {
+  flex: 0 0 auto;
+  width: 36px; height: 36px;
+  margin: -8px 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px; line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.stift:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .gew-zeile { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
 
 .straehne { white-space: nowrap; }
@@ -213,20 +228,6 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 
 /* Offline gemerkt, noch nicht beim Server - siehe Warteschlange in app.js. */
 .wartet { white-space: nowrap; color: var(--yellow); font-weight: 600; }
-
-/* Dieselbe Karte in der Tagesansicht des Verlaufs, dort aber als ganzer Knopf:
-   es gibt nur eine Handlung, den Tag eintragen. Erbt Rand und Statusfarbe von
-   .gew, ein <button> bringt nur eigene Schriftvorgaben mit. */
-button.gew {
-  width: 100%;
-  font: inherit;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-/* Kein border-color beim Hover: das wuerde den farbigen Statusrand links
-   mit ueberschreiben. */
-button.gew:hover { background: var(--hover); }
 
 .balken { height: 6px; border-radius: 3px; background: var(--leer); overflow: hidden; }
 .balken > i { display: block; height: 100%; border-radius: 3px; background: var(--yellow); transition: width .2s; }
@@ -321,6 +322,20 @@ button.gew:hover { background: var(--hover); }
 }
 .kal-wahl button[aria-selected="true"] {
   border-color: var(--accent); background: var(--accent-soft); color: var(--accent);
+}
+/* Der Stift der gerade gewaehlten Gewohnheit steht als runder Knopf zwischen
+   den Pillen. Die Regel MUSS spezifischer sein als ".kal-wahl button"
+   (Klasse+Typ) - eine reine .stift-Regel verliert dagegen, egal wo sie steht. */
+.kal-wahl .stift {
+  margin: 0;
+  padding: 0;
+  width: 36px;
+  font-size: 16px; font-weight: 400;
+  /* Dieselbe Farbgebung wie die gewaehlte Pille: der Stift gehoert zu ihr und
+     soll nicht wie eine weitere, unausgewaehlte Gewohnheit aussehen. */
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .kal-kopf {
@@ -428,29 +443,6 @@ button.gew:hover { background: var(--hover); }
 .timer-ring > i { display: block; height: 100%; background: var(--accent); transition: width .5s linear; }
 .timer-knoepfe { display: flex; gap: 8px; margin-top: 10px; }
 .timer-knoepfe .btn { min-width: 96px; justify-content: center; }
-
-/* "Zaehlt auf <Gewohnheit>" unter den Knoepfen. Bewusst ein natives <select>
-   und keine Knopfreihe wie sonst: die Liste ist so lang wie die Zahl der
-   Gewohnheiten, und der Browser bringt fuers Handy die bessere Auswahl mit. */
-.timer-buchung {
-  display: flex; align-items: center; gap: 8px;
-  margin-top: 14px; max-width: 100%;
-}
-.timer-buchung label { flex: none; }
-.timer-buchung select {
-  min-width: 0;
-  border: 1px solid var(--line);
-  background: var(--row);
-  color: var(--text);
-  padding: 6px 8px;
-  border-radius: 8px;
-  font: inherit;
-  /* Wie bei den Textfeldern: unter 16px zoomt Safari beim Antippen hinein. */
-  font-size: 16px;
-  outline: none;
-}
-.timer-buchung select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.timer-buchung select:disabled { opacity: .6; }
 
 .stat-zahlen {
   display: flex; gap: 10px; margin: 22px 0 14px;

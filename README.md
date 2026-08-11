@@ -42,9 +42,11 @@ Flamme läuft von allein weiter, solange du nichts über der Grenze einträgst,
 und der Kalender ist ab dem Anlegetag grün. Bei „Mindestens" bleibt es dabei,
 dass nur zählt, was du wirklich einträgst.
 
-Doppeltipp auf eine Gewohnheit öffnet sie zum Bearbeiten — Name, Ziel,
-Rhythmus, alles änderbar außer der Art (Abhaken/Mit Zielmenge) und der
-Ziel-Art, sobald ein Tag erfasst ist.
+Der **Stift (✎)** hinter dem Namen öffnet die Gewohnheit zum Bearbeiten — Name,
+Ziel, Rhythmus, alles änderbar außer der Art (Abhaken/Mit Zielmenge) und der
+Ziel-Art, sobald ein Tag erfasst ist. Denselben Stift gibt es im Verlauf neben
+der gerade gewählten Gewohnheit; das ist der Weg zu Gewohnheiten, die heute
+nicht dran sind und deshalb in „Heute" nicht auftauchen.
 
 ### Rhythmus
 
@@ -73,18 +75,11 @@ Neubewertung vergangener Tage.
 
 ### Nachtragen
 
-Im Reiter **Verlauf** kannst du oben zwischen zwei Blickrichtungen umschalten.
-
-**Nach Gewohnheit** ist ein Monatskalender, eine Gewohnheit auf einmal — oben
-zwischen den Gewohnheiten wechseln, mit den Pfeilen durch die Monate blättern.
-Tipp auf einen Tag, um ihn einzutragen — auch rückwirkend. Bei festen
-Wochentagen sind nicht geplante Tage gedimmt und lassen sich nicht antippen.
-
-**Nach Tag** dreht es um: ein Tag, alle Gewohnheiten, die an ihm dran waren.
-Das ist der schnelle Weg, wenn du ein paar Tage nicht in der App warst — statt
-dich pro Gewohnheit durch den Kalender zu klicken, arbeitest du einen Tag nach
-dem anderen ab. Tipp auf eine Gewohnheit öffnet denselben Dialog wie im
-Kalender.
+Der Reiter **Verlauf** ist ein Monatskalender, eine Gewohnheit auf einmal —
+oben zwischen den Gewohnheiten wechseln, mit den Pfeilen oder einem Wisch durch
+die Monate blättern. Tipp auf einen Tag, um ihn einzutragen — auch rückwirkend.
+Bei festen Wochentagen sind nicht geplante Tage gedimmt und lassen sich nicht
+antippen.
 
 Ein gelber Tag wird grün, sobald du die fehlende Menge nachträgst. **Die Strähne
 heilt dabei rückwirkend**: war die Kette nur wegen dieses einen Tages
@@ -148,25 +143,9 @@ Benachrichtigung.
 Sitzung steht fest, sie lässt sich nachträglich nicht mehr ändern — und Stopp
 sitzt direkt neben Pause. Zum kurzen Unterbrechen ist Pause da.
 
-### Zählt auf
-
-Unter den Knöpfen kannst du eine Gewohnheit auswählen, bevor du startest. Beim
-Beenden landen die Fokusminuten dann direkt dort: 25 Minuten auf „60 Min lesen"
-bringen die Gewohnheit auf 25 von 60. Eine Abhaken-Gewohnheit wird schlicht
-abgehakt.
-
-Addiert wird auf das, was schon dasteht — zwei Sitzungen an einem Tag ergeben
-zusammen 50 Minuten. Brichst du vorzeitig ab, zählt die Zeit, die wirklich
-gelaufen ist. Während einer Sitzung lässt sich die Auswahl nicht mehr ändern:
-die Buchung hängt an der Sitzung, nicht am Knopf.
-
-Gutgeschrieben werden immer **Minuten**. Für „60 Min lesen" passt das; buchst du
-eine Sitzung auf „8 Gläser Wasser", landen dort 25 Minuten als 25 Gläser. Die
-App kann das nicht wissen — die Auswahl steht dir offen, sinnvoll ist sie nur
-bei Gewohnheiten, die in Zeit zählen.
-
-Obergrenzen stehen nicht zur Auswahl. Fokusminuten auf „höchstens 30 Min
-Instagram" zu buchen würde einen guten Tag schlechter machen.
+Eine Sitzung zählt nur auf die Fokusstatistik, nicht auf eine Gewohnheit. Es gab
+dafür eine Auswahl „Zählt auf" — die ist wieder raus, weil gutgeschrieben immer
+Minuten wurden und das nur bei Gewohnheiten passte, die ohnehin in Zeit zählen.
 
 **Die Sitzung läuft weiter, auch wenn du den Tab schließt oder das Handy
 sperrst.** Sie liegt auf dem Server, nicht im Browser: kommst du zurück, steht

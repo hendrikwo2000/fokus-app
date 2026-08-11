@@ -24,7 +24,7 @@ export const MAX_DAUER = 180;
 // Verstrichene Fokuszeit = seit dem Start vergangen, minus abgeschlossene
 // Pausen, minus die gerade laufende Pause.
 const SITZUNG_SPALTEN = `
-  id, geplante_min, datum, pause_gesamt_sek, pausiert_seit, gewohnheit_id,
+  id, geplante_min, datum, pause_gesamt_sek, pausiert_seit,
   CAST(strftime('%s','now') - strftime('%s', gestartet_am) AS INTEGER) AS seit_start_sek,
   CASE WHEN pausiert_seit IS NULL THEN 0
        ELSE CAST(strftime('%s','now') - strftime('%s', pausiert_seit) AS INTEGER)
@@ -54,60 +54,6 @@ export function alsOffeneSitzung(zeile) {
     datum: zeile.datum,
     verstrichenSek: verstricheneSek(zeile),
     pausiert: zeile.pausiert_seit !== null,
-    gewohnheitId: zeile.gewohnheit_id || null,
-  };
-}
-
-/**
- * Die Fokusminuten einer beendeten Sitzung bei ihrer Gewohnheit gutschreiben.
- *
- * Gebucht wird auf `sitzung.datum` - das lokale Datum vom START der Sitzung.
- * Eine Sitzung, die ueber Mitternacht laeuft, zaehlt also fuer den Tag, an dem
- * sie begonnen hat; alles andere waere nicht zu erklaeren.
- *
- * Addiert wird auf den vorhandenen Stand, nicht gesetzt: zwei Sitzungen am
- * selben Tag ergeben zusammen 50 Minuten, und was vorher von Hand eingetragen
- * wurde, bleibt stehen. Bei einer Abhaken-Gewohnheit gibt es nichts zu
- * addieren, dort setzt eine Sitzung schlicht das Haekchen.
- *
- * Eine Obergrenze kommt hier nicht an (start.js laesst sie gar nicht erst zu):
- * Fokusminuten auf ein Limit zu buchen hiesse, sich fuer konzentriertes
- * Arbeiten einen schlechteren Tag einzutragen.
- */
-async function schreibeGutschrift(env, sitzung, echteMin) {
-  if (!sitzung.gewohnheit_id || echteMin <= 0) return null;
-
-  const gewohnheit = await env.DB.prepare(
-    "SELECT id, name, typ, zielmenge, einheit, richtung FROM gewohnheiten WHERE id = ?"
-  ).bind(sitzung.gewohnheit_id).first();
-  // Weg oder inzwischen zur Obergrenze umgebaut: still nichts tun. Die Sitzung
-  // selbst ist da schon abgeschlossen, sie soll daran nicht scheitern.
-  if (!gewohnheit || (gewohnheit.typ === "menge" && gewohnheit.richtung === "hoechstens")) {
-    return null;
-  }
-
-  const vorher = await env.DB.prepare(
-    "SELECT menge FROM gewohnheit_logs WHERE gewohnheit_id = ? AND datum = ?"
-  ).bind(gewohnheit.id, sitzung.datum).first();
-
-  const neu = gewohnheit.typ === "binaer" ? 1 : (vorher ? vorher.menge : 0) + echteMin;
-
-  // Dasselbe UPSERT wie in api/gewohnheiten/log.js, inklusive der Regel, dass
-  // ziel_damals nur beim Anlegen gesetzt wird.
-  await env.DB.prepare(
-    `INSERT INTO gewohnheit_logs (gewohnheit_id, datum, menge, ziel_damals)
-          VALUES (?, ?, ?, ?)
-     ON CONFLICT(gewohnheit_id, datum)
-     DO UPDATE SET menge = excluded.menge, updated_at = datetime('now')`
-  ).bind(gewohnheit.id, sitzung.datum, neu, gewohnheit.zielmenge).run();
-
-  return {
-    id: gewohnheit.id,
-    name: gewohnheit.name,
-    typ: gewohnheit.typ,
-    einheit: gewohnheit.einheit,
-    menge: neu,
-    gutgeschrieben: gewohnheit.typ === "binaer" ? null : echteMin,
   };
 }
 
@@ -130,17 +76,11 @@ export async function beendeSitzung(env, zeile) {
     "UPDATE fokus_sitzungen SET echte_min = ?, vollstaendig = ?, pausiert_seit = NULL WHERE id = ?"
   ).bind(echteMin, vollstaendig, zeile.id).run();
 
-  // Auch bei einer abgebrochenen Sitzung: 18 gearbeitete Minuten sind 18
-  // Minuten, egal ob 25 geplant waren. Dieselbe Lesart wie in der
-  // Wochenstatistik, die abgebrochene Sitzungen ebenfalls mitzaehlt.
-  const gutschrift = await schreibeGutschrift(env, zeile, echteMin);
-
   return {
     id: zeile.id,
     echteMin,
     vollstaendig: vollstaendig === 1,
     geplanteMin: zeile.geplante_min,
-    gutschrift,
   };
 }
 

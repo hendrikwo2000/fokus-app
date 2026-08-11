@@ -221,9 +221,9 @@ nicht mehr. Wer sie will, muss den Tag von Hand abschließen. Hendriks
 Entscheidung vom 11.08.2026, gefragt — die Alternativen waren „alles lassen"
 (tägliche Bestätigung) und „heute sofort grün".
 
-`ruhtHeute()` gilt **nur für heute**. Kalender und Tagesansicht der
-Vergangenheit rechnen unverändert über `stillerTagZaehlt()`, und der heutige
-Kalendertag bleibt dort grau — er wird morgen grün.
+`ruhtHeute()` gilt **nur für heute**. Der Kalender rechnet für vergangene Tage
+unverändert über `stillerTagZaehlt()`, und der heutige Kalendertag bleibt dort
+grau — er wird morgen grün.
 
 ### Eine Obergrenze verschwindet nie aus „Heute"
 
@@ -347,38 +347,21 @@ Sitzung lässt sich nachträglich nicht mehr ändern oder löschen — ein Fehlg
 neben „Pause" bliebe also für immer in der Wochenstatistik. Unter einer Minute
 gibt es nichts zu verlieren, da entfällt die Rückfrage.
 
-### Eine Sitzung auf eine Gewohnheit buchen
+### Ausgebaut: „Zählt auf" (Sitzung auf eine Gewohnheit buchen)
 
-`fokus_sitzungen.gewohnheit_id` (optional, `migration-sitzung-gewohnheit.sql`):
-Beim Beenden landen die Fokusminuten direkt bei dieser Gewohnheit, statt dass
-man sie von Hand nachtippt. Die Gutschrift sitzt in `beendeSitzung()` in
-`_lib/fokus.js` — der einen Stelle, an der jede Sitzung endet, egal ob durch
-Stopp, durch Ablauf oder weil `start.js` eine vergessene abschließt.
+Eine Sitzung konnte auf eine Gewohnheit gebucht werden — beim Beenden landeten
+die Fokusminuten dort als Menge. **Am 11.08.2026 wieder ausgebaut** (Auswahl im
+Timer, `schreibeGutschrift()` in `_lib/fokus.js`, Prüfung und Spalte im INSERT
+von `start.js`, `meldeGutschrift()` im Client). Grund: gutgeschrieben wurden
+immer Minuten, egal welche Einheit die Gewohnheit trug — bei „8 Gläser Wasser"
+wurden aus 25 Minuten 25 Gläser. Sinnvoll war die Buchung damit nur bei
+Gewohnheiten, die ohnehin in Zeit zählen.
 
-- **Gebucht wird auf `sitzung.datum`**, das lokale Datum vom START. Eine
-  Sitzung über Mitternacht zählt für den Tag, an dem sie begonnen hat.
-- **Addiert, nicht gesetzt.** Zwei Sitzungen am selben Tag ergeben zusammen
-  50 Minuten, von Hand Eingetragenes bleibt stehen. Bei einer
-  Abhaken-Gewohnheit gibt es nichts zu addieren, dort setzt eine Sitzung
-  einfach das Häkchen.
-- **Auch eine abgebrochene Sitzung schreibt.** 18 gearbeitete Minuten sind 18
-  Minuten — dieselbe Lesart wie in der Wochenstatistik.
-- **Gutgeschrieben werden Minuten, egal welche Einheit die Gewohnheit trägt.**
-  Bei „8 Gläser Wasser" landen 25 Minuten als 25 Gläser. Die Einheit ist
-  Freitext, die App kann das nicht prüfen — deshalb nennt die Meldung
-  ausdrücklich „Min" und borgt sich nicht die Einheit der Gewohnheit. So sieht
-  man, dass die Paarung nicht passt, statt eine stille Falschbuchung zu haben.
-- **Obergrenzen sind ausgeschlossen** (`start.js` antwortet mit 400). Fokus-
-  minuten auf ein Limit zu buchen hieße, sich fürs Arbeiten einen schlechteren
-  Tag einzutragen. Archivierte Gewohnheiten genauso wenig.
-- **Ist die Gewohnheit beim Beenden weg oder inzwischen eine Obergrenze, passiert
-  still nichts.** Die Sitzung ist an dem Punkt schon abgeschlossen, sie soll
-  daran nicht scheitern. Der Fremdschlüssel steht auf `ON DELETE SET NULL`, die
-  Sitzung überlebt eine gelöschte Gewohnheit also mitsamt ihren Minuten.
-
-Der Client zeigt die Gutschrift als zweite Snackbar-Meldung, 3,4 Sekunden nach
-der ersten — `melde()` überschreibt sich selbst, gleichzeitig wäre eine der
-beiden nicht zu sehen.
+**Die Spalte `fokus_sitzungen.gewohnheit_id` bleibt stehen** (angelegt durch
+`migration-sitzung-gewohnheit.sql`, `ON DELETE SET NULL`, nullable). Sie wird
+nicht mehr beschrieben und nicht mehr gelesen; gelöscht wird in dieser
+Datenbank grundsätzlich nichts. Wer die Migration nie gefahren hat, braucht sie
+jetzt auch nicht mehr — `start.js` nennt die Spalte im INSERT nicht.
 
 Wochen werden **in JavaScript** gebündelt (`montagVon`), nicht per
 `strftime('%W')` — die SQL-Wochennummer stolpert über den Jahreswechsel.
@@ -615,7 +598,7 @@ laden. HttpOnly stört nicht — der Server prüft nur den Wert.
 | `PUT /api/gewohnheiten/log` | Einen Tag setzen — der einzige Schreibweg für Tage. `loeschen: true` stellt ihn wieder auf „offen" (nur bei einer Obergrenze nötig, siehe oben). |
 | `PUT /api/gewohnheiten/reihenfolge` | `{ids: [...]}` — die vollständige Liste in der gewünschten Reihenfolge, schreibt `position` |
 | `GET /api/fokus?heute=` | Laufende Sitzung, Einstellungen, Wochenstatistik |
-| `POST /api/fokus/start` \| `/pause` \| `/stop` | Sitzung steuern (`pause` ist ein Umschalter). `start` nimmt optional `gewohnheitId` — siehe [Sitzung auf eine Gewohnheit buchen](#eine-sitzung-auf-eine-gewohnheit-buchen). |
+| `POST /api/fokus/start` \| `/pause` \| `/stop` | Sitzung steuern (`pause` ist ein Umschalter). `start` nimmt `heute` und optional `geplanteMin`. |
 | `PUT /api/fokus/einstellungen` | Standarddauer |
 | `GET /api/export` | Alle eigenen Daten als JSON-Datei zum Herunterladen. Kein Gegenstück zum Zurückspielen. |
 | `POST /api/push/abonnieren` \| `/abbestellen` | Push-Abo speichern/löschen (angemeldet) |

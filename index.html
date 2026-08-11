@@ -2,11 +2,11 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<!-- Zoom ist erlaubt. Frueher stand hier maximum-scale/user-scalable=no, damit
-     das Doppeltippen zum Bearbeiten nicht mit dem Doppeltipp-Zoom kollidiert -
-     das kostete aber den Zoom auf der ganzen Seite. Denselben Zweck erfuellt
-     jetzt "touch-action: manipulation" auf .gew-haupt (style.css): dort ist
-     nur der Doppeltipp-Zoom aus, Aufziehen mit zwei Fingern geht ueberall. -->
+<!-- Zoom ist ueberall erlaubt, ohne Ausnahme. Frueher stand hier
+     maximum-scale/user-scalable=no und spaeter "touch-action: manipulation"
+     auf .gew-haupt - beides nur, damit der Doppeltipp zum Bearbeiten nicht mit
+     dem Doppeltipp-Zoom kollidiert. Bearbeiten laeuft jetzt ueber den
+     Stift-Knopf auf der Karte, damit ist der Grund weg. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#4f63d2">
@@ -65,60 +65,35 @@
        steht. Ohne diese Zeile sieht das aus, als waere die Gewohnheit weg. -->
   <p class="wochen-fertig" id="wochenFertig" hidden></p>
 
-  <!-- Bearbeiten liegt bewusst auf der Karte selbst und nicht auf einem
-       eigenen Knopf (der waere beim Abhaken nur ein zweites Ziel). Dann muss
-       aber irgendwo stehen, dass es das gibt - auf dem Handy gibt es keinen
-       Tooltip, der es verraet. -->
-  <p class="wochen-fertig" id="bearbeitenHinweis" hidden>
-    Zum Bearbeiten zweimal auf eine Gewohnheit tippen.
-  </p>
-
   <div style="margin-top:14px; text-align:center;">
     <button class="btn" id="neueGewohnheitBtn">＋ Gewohnheit</button>
   </div>
 </section>
 
 <!-- ---------- Verlauf ---------- -->
-<!-- Zwei Blickrichtungen auf dieselbe Historie: ein Monat einer Gewohnheit,
-     oder ein Tag mit allen Gewohnheiten. Das Zweite ist der Weg, wenn man ein
-     paar Tage nicht in der App war. -->
+<!-- Ein Monatskalender, eine Gewohnheit auf einmal. Frueher stand hier ein
+     Umschalter auf eine zweite Blickrichtung ("Nach Tag": ein Tag, alle
+     Gewohnheiten) - eine Ansicht zu wenig genutzt, um den Umschalter ueber
+     jeder Kalenderansicht zu rechtfertigen. Nachtragen laeuft jetzt
+     ausschliesslich ueber den Kalender. -->
 <section class="ansicht" id="ansichtVerlauf" hidden>
-  <div class="kal-wahl" id="verlaufModus">
-    <button type="button" data-modus="gewohnheit" aria-selected="true">Nach Gewohnheit</button>
-    <button type="button" data-modus="tag" aria-selected="false">Nach Tag</button>
+  <div class="kal-wahl" id="kalWahl"></div>
+  <div class="kal-kopf">
+    <button class="btn icon-only" id="kalZurueck" title="Vorheriger Monat">‹</button>
+    <div class="kal-monat" id="kalMonat"></div>
+    <button class="btn icon-only" id="kalVor" title="Nächster Monat">›</button>
   </div>
-
-  <div id="verlaufGewohnheit">
-    <div class="kal-wahl" id="kalWahl"></div>
-    <div class="kal-kopf">
-      <button class="btn icon-only" id="kalZurueck" title="Vorheriger Monat">‹</button>
-      <div class="kal-monat" id="kalMonat"></div>
-      <button class="btn icon-only" id="kalVor" title="Nächster Monat">›</button>
-    </div>
-    <div class="kal-raster" id="kalender"></div>
-    <div class="legende">
-      <span><i style="background:var(--leer)"></i>offen</span>
-      <span id="kalLegendeTeilweise"><i style="background:var(--yellow)"></i>teilweise</span>
-      <span><i style="background:var(--green)"></i>erledigt</span>
-      <span id="kalLegendeUeberschritten" hidden><i style="background:var(--red)"></i>überschritten</span>
-      <span id="kalLegendeGeplant" hidden><i class="kal-nicht-geplant-swatch"></i>nicht geplant</span>
-    </div>
-    <p class="hinweis" style="text-align:center; margin-top:12px;">
-      Tippe auf einen Tag, um ihn nachzutragen. Wischen wechselt den Monat.
-    </p>
+  <div class="kal-raster" id="kalender"></div>
+  <div class="legende">
+    <span><i style="background:var(--leer)"></i>offen</span>
+    <span id="kalLegendeTeilweise"><i style="background:var(--yellow)"></i>teilweise</span>
+    <span><i style="background:var(--green)"></i>erledigt</span>
+    <span id="kalLegendeUeberschritten" hidden><i style="background:var(--red)"></i>überschritten</span>
+    <span id="kalLegendeGeplant" hidden><i class="kal-nicht-geplant-swatch"></i>nicht geplant</span>
   </div>
-
-  <div id="verlaufTag" hidden>
-    <div class="kal-kopf">
-      <button class="btn icon-only" id="tagZurueck" title="Vorheriger Tag">‹</button>
-      <div class="kal-monat" id="tagUeberschrift"></div>
-      <button class="btn icon-only" id="tagVor" title="Nächster Tag">›</button>
-    </div>
-    <div class="gew-liste" id="tagListe"></div>
-    <p class="hinweis" style="text-align:center; margin-top:12px;">
-      Tippe auf eine Gewohnheit, um sie für diesen Tag einzutragen.
-    </p>
-  </div>
+  <p class="hinweis" style="text-align:center; margin-top:12px;">
+    Tippe auf einen Tag, um ihn nachzutragen. Wischen wechselt den Monat.
+  </p>
 </section>
 
 <!-- ---------- Fokus ---------- -->
@@ -131,17 +106,6 @@
       <button class="btn primary" id="startBtn">Start</button>
       <button class="btn" id="pauseBtn" hidden>Pause</button>
       <button class="btn gefahr" id="stopBtn" hidden>Stopp</button>
-    </div>
-
-    <!-- Optional: die Minuten dieser Sitzung landen beim Beenden bei einer
-         Gewohnheit. Waehrend sie laeuft gesperrt - die Buchung haengt an der
-         Sitzung, nicht am Knopf. Obergrenzen stehen gar nicht erst zur Wahl
-         (siehe functions/api/fokus/start.js). -->
-    <div class="timer-buchung">
-      <label for="fokusGewohnheit">Zählt auf</label>
-      <select id="fokusGewohnheit">
-        <option value="">nichts</option>
-      </select>
     </div>
   </div>
 
