@@ -266,6 +266,20 @@
 
 <div class="popup" id="einPopup" hidden>
   <div class="popup-box einstellungen">
+
+    <!-- Kopfzeile mit dem Schliessen-Kreuz, uebernommen aus der ToDo-Liste.
+         Steht ausserhalb von .ein-blaettern und scrollt deshalb nie weg - am
+         Handy fuellt der Dialog den ganzen Bildschirm, ein weggescrolltes ✕
+         waere dort eine Sackgasse (kein Rand zum Danebentippen, kein Escape
+         auf der Tastatur). Bewusst ein <header> und kein <div>. -->
+    <header class="ein-kopfzeile">
+      <button type="button" id="einSchliessen" class="ein-schliessen"
+              aria-label="Einstellungen schließen" title="Schließen">✕</button>
+    </header>
+
+    <!-- Nur dieser Kasten blaettert. Vorher scrollte die ganze Box. -->
+    <div class="ein-blaettern">
+
     <div class="popup-icon">⚙️</div>
     <h2>Einstellungen</h2>
 
@@ -386,7 +400,7 @@
       </div>
     </details>
 
-    <button type="button" class="lock-link" id="einSchliessen">Schließen</button>
+    </div><!-- /.ein-blaettern -->
   </div>
 </div>
 
