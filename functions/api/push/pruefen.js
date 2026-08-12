@@ -22,70 +22,17 @@
 
 import { json } from "../../_lib/antwort.js";
 import { sendeWebPush } from "../../_lib/webpush.js";
-import { status, montagVon, tagPlus, stillerTagZaehlt, istObergrenze } from "../../_lib/tag.js";
+import { montagVon } from "../../_lib/tag.js";
+// istHeuteDran/ruhtHeute/nochOffen lagen frueher hier, als Spiegelung der
+// gleichnamigen Funktionen im Client. Seit die ToDo-Liste dieselbe
+// Heute-Ansicht zeigt (api/gewohnheiten/heute.js), stehen sie in _lib/heute.js
+// - sonst gaebe es sie serverseitig zweimal.
+import { nochOffen } from "../../_lib/heute.js";
 
 // "Heute" bewusst in der Zeitzone Europe/Berlin, nicht UTC - sonst faellt der
 // Tageswechsel je nach Sommer-/Winterzeit bis zu zwei Stunden falsch.
 function heuteBerlin() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
-}
-
-// Wochentag-Index eines Datums, 0=Mo .. 6=So - wie wochentagIndex() in
-// _lib/tag.js (dort nicht exportiert, deshalb hier dupliziert statt die
-// gemeinsame Datei fuer eine einzelne Zeile anzufassen).
-function wochentagIndex(datum) {
-  const [j, m, t] = datum.split("-").map(Number);
-  return (new Date(Date.UTC(j, m - 1, t)).getUTCDay() + 6) % 7;
-}
-
-function istGeplant(gewohnheit, datum) {
-  if (gewohnheit.rhythmus !== "wochentage") return true;
-  return (gewohnheit.wochentage_maske & (1 << wochentagIndex(datum))) !== 0;
-}
-
-// Zahl der in dieser Woche (Montag bis heute) bereits erledigten Tage einer
-// Gewohnheit - fuer den Wochenfortschritt bei 'x_pro_woche'. Spiegelt
-// erledigtDieseWoche() in app.js, nur aus rohen DB-Zeilen statt state.logs.
-function erledigtDieseWoche(gewohnheit, tageDerGewohnheit, heute) {
-  const start = montagVon(heute);
-  let n = 0;
-  for (let i = 0; i < 7; i++) {
-    const tag = tagPlus(start, i);
-    if (tag > heute) break;
-    const eintrag = tageDerGewohnheit[tag];
-    if (!eintrag) {
-      // Ohne Eintrag zaehlt der Tag nur bei einer Obergrenze mit.
-      if (stillerTagZaehlt(gewohnheit, tag, heute)) n++;
-      continue;
-    }
-    if (status(gewohnheit.typ, eintrag.menge, eintrag.ziel, gewohnheit.richtung) === "erledigt") n++;
-  }
-  return n;
-}
-
-// Ob eine Gewohnheit heute noch offen ist: heute ueberhaupt dran (istHeuteDran
-// in app.js) UND noch nicht erledigt.
-function nochOffen(gewohnheit, tageDerGewohnheit, heute) {
-  if (gewohnheit.rhythmus === "wochentage" && !istGeplant(gewohnheit, heute)) return false;
-  // Eine Obergrenze ist mit dem erreichten Wochenziel NICHT erledigt: eine
-  // Grenze gilt an jedem Tag der Woche, auch am sechsten. Deshalb faellt sie
-  // hier durch auf die Tagespruefung unten, genau wie 'taeglich'.
-  if (gewohnheit.rhythmus === "x_pro_woche" && !istObergrenze(gewohnheit)) {
-    return erledigtDieseWoche(gewohnheit, tageDerGewohnheit, heute) < gewohnheit.wochenziel;
-  }
-  const heutiger = tageDerGewohnheit[heute];
-  // Kein Eintrag heisst offen - und zwar ohne status() zu fragen: bei einer
-  // Obergrenze waere die 0 dort "erledigt" (siehe _lib/tag.js), ein noch gar
-  // nicht angefasster Tag wuerde also faelschlich als geschafft gelten.
-  //
-  // AUSSER bei einer Obergrenze: die verlangt nichts, solange nichts
-  // eingetragen ist. Ab morgen zaehlt der Tag ohnehin von allein als
-  // eingehalten (stillerTagZaehlt) - abends daran zu erinnern hiesse, eine
-  // Bestaetigung einzufordern, die die App sich selbst gibt. Spiegel von
-  // ruhtHeute() in app.js.
-  if (!heutiger) return !istObergrenze(gewohnheit);
-  const st = status(gewohnheit.typ, heutiger.menge, heutiger.ziel, gewohnheit.richtung);
-  return st === "offen" || st === "teilweise";
 }
 
 async function pruefeUndSende(env) {

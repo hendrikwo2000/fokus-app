@@ -294,6 +294,48 @@ obwohl der Tag gerade erst angefangen hat.
 Geladen werden Logs der letzten 730 Tage. Das deckelt zugleich die maximal
 darstellbare Strähne und hält die Abfrage klein.
 
+## Die Tagesliste für die ToDo-Liste
+
+Die ToDo-Liste (`todo.it-wolf.org`) zeigt seit dem 13.08.2026 dieselbe
+Tagesansicht in einem eigenen Panel: Gewohnheiten abhaken, Timer starten,
+mehr nicht. Sie fragt dafür **diese App**, statt die Tabellen selbst zu lesen —
+obwohl beide dieselbe Datenbank benutzen und es technisch ginge.
+
+Der Grund steht im Umfang: Flammen, Rhythmus und Obergrenzen-Regeln sind rund
+1200 Zeilen. Als zweite Kopie drüben wären sie irgendwann eine zweite Wahrheit,
+und dann zeigten die beiden Apps für denselben Tag verschiedene Zahlen.
+
+**`GET /api/gewohnheiten/heute?heute=`** liefert deshalb alles fertig
+gerechnet: welche Gewohnheiten heute erscheinen, ihr Zustand
+(`offen`/`teilweise`/`erledigt`/`ueberschritten`/`ruht`), Menge, Ziel, Flamme
+samt Einheit (`Tage` oder `Wochen`), der Wochenfortschritt bei `x_pro_woche`
+und die Tagesbilanz. Der Client dort entscheidet nichts selbst, er zeichnet
+nur. Geschrieben wird weiter über `PUT /api/gewohnheiten/log` — ein zweiter
+Schreibweg wäre eine zweite Stelle, an der `ziel_damals` falsch gesetzt werden
+kann.
+
+Gegenstück zum Bootstrap (`GET /api/gewohnheiten`): der liefert Rohdaten, weil
+die eigene App die volle Historie ohnehin für Kalender und Verlauf braucht.
+
+### `_lib/heute.js`
+
+Die Auswahl „ist heute dran / ruht / noch offen" gab es serverseitig schon
+einmal — in `api/push/pruefen.js`, als ausdrückliche Spiegelung der
+gleichnamigen Funktionen im Client (`app.js`). Mit dem neuen Endpunkt wäre sie
+ein drittes Mal dagewesen; deshalb steht sie jetzt in `_lib/heute.js`, und
+`pruefen.js` holt sie sich von dort. `nochOffen()` ist dabei nachweislich
+unverändert geblieben (14 Fälle gegen die alte Fassung geprüft, alle gleich) —
+die Abenderinnerung zählt also weiter genau wie vorher.
+
+**Die Client-Fassung in `app.js` bleibt bestehen.** Sie rechnet auf
+`state.logs` und muss offline funktionieren; zusammenlegen ginge nur über eine
+gemeinsame Datenform, die beide Seiten verbiegen würde. Ändert sich eine Regel,
+gehört sie in `_lib/heute.js` **und** in `app.js` nachgezogen — dieselbe
+Doppelpflege wie bei `_lib/session.js` gegenüber der ToDo-Liste.
+
+**Zugang:** Der Endpunkt hängt wie jeder andere an `nutzerOderFehler()`, prüft
+also `fokus_zugang`. Ohne den kommt auch aus der ToDo-Liste nichts durch.
+
 ## Datum kommt vom Client
 
 Der Worker läuft in UTC, gelebt wird in UTC+1/+2. Um 0:30 Uhr wäre serverseitig
@@ -594,6 +636,7 @@ laden. HttpOnly stört nicht — der Server prüft nur den Wert.
 | `GET /api/auth/status` | `{angemeldet}` — immer 200, wird im Sekundentakt gepollt |
 | `POST /api/waitlist` | Eintragen für Fokus-Zugang (`quelle='fokus'`). Existiert das Konto schon, wird `fokus_zugang` direkt gesetzt statt auf `todo.it-wolf.org/admin` zu verweisen. |
 | `GET /api/gewohnheiten?heute=` | Bootstrap: Gewohnheiten, volle Log-Historie (`historieAb` bis `heute`), Strähnen |
+| `GET /api/gewohnheiten/heute?heute=` | Die Tagesliste fertig gerechnet (Auswahl, Zustand, Flamme). Für die ToDo-Liste, siehe [Die Tagesliste für die ToDo-Liste](#die-tagesliste-für-die-todo-liste). |
 | `POST/PATCH/DELETE /api/gewohnheiten` | Anlegen, ändern/archivieren, endgültig löschen |
 | `PUT /api/gewohnheiten/log` | Einen Tag setzen — der einzige Schreibweg für Tage. `loeschen: true` stellt ihn wieder auf „offen" (nur bei einer Obergrenze nötig, siehe oben). |
 | `PUT /api/gewohnheiten/reihenfolge` | `{ids: [...]}` — die vollständige Liste in der gewünschten Reihenfolge, schreibt `position` |
