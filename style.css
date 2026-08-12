@@ -325,18 +325,24 @@ label { font-size: 12.5px; font-weight: 600; color: var(--muted); }
 }
 /* Der Stift der gerade gewaehlten Gewohnheit steht als runder Knopf zwischen
    den Pillen. Die Regel MUSS spezifischer sein als ".kal-wahl button"
-   (Klasse+Typ) - eine reine .stift-Regel verliert dagegen, egal wo sie steht. */
+   (Klasse+Typ) - eine reine .stift-Regel verliert dagegen, egal wo sie steht.
+   Genau deshalb stehen Rahmen, Flaeche und Farbe hier ueberhaupt noch einmal:
+   sonst erbte der Stift das Pillen-Aussehen und saehe wie eine zweite
+   ausgewaehlte Gewohnheit aus. Er ist dasselbe leise Zeichen wie auf der
+   Heute-Karte - Farbe erst beim Drueberfahren. */
 .kal-wahl .stift {
   margin: 0;
   padding: 0;
   width: 36px;
   font-size: 16px; font-weight: 400;
-  /* Dieselbe Farbgebung wie die gewaehlte Pille: der Stift gehoert zu ihr und
-     soll nicht wie eine weitere, unausgewaehlte Gewohnheit aussehen. */
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
 }
+/* Auch der Hover muss die Regel darueber ueberbieten: ".stift:hover" hat
+   dieselbe Spezifitaet wie ".kal-wahl .stift", steht aber weiter oben und
+   verliert damit. */
+.kal-wahl .stift:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 
 .kal-kopf {
   display: flex; align-items: center; justify-content: center; gap: 16px;
