@@ -1,5 +1,5 @@
 /**
- * Tage, Status und Straehnen.
+ * Tage, Status und die Flammen-Zahl.
  *
  * WARUM DAS DATUM VOM CLIENT KOMMT
  * Der Worker laeuft in UTC, gelebt wird in UTC+1/+2. Um 0:30 Uhr waere
@@ -51,8 +51,8 @@ export function tagPlus(datum, n) {
  * Das "heute" der App auf Plausibilitaet pruefen.
  *
  * Der Client darf das Datum bestimmen (siehe oben), aber nicht frei erfinden -
- * sonst liessen sich Straehnen in die Zukunft schreiben. Ein Tag Spielraum in
- * beide Richtungen deckt jede Zeitzone der Welt ab.
+ * sonst liessen sich Tage in der Zukunft abhaken. Ein Tag Spielraum in beide
+ * Richtungen deckt jede Zeitzone der Welt ab.
  */
 export function pruefeHeute(heute) {
   if (!istDatum(heute)) return "Ungueltiges Datum";
@@ -132,8 +132,12 @@ export function istObergrenze(gewohnheit) {
  * - **Nur die Vergangenheit.** Der heutige Tag bleibt offen, sonst waere er
  *   gruen, bevor er vorbei ist - und die Erinnerung (push/pruefen.js) haette
  *   nie etwas zu melden.
- * - **Erst ab dem Anlegen.** Ohne das liefe die Straehne einer gestern
- *   angelegten Gewohnheit ueber die vollen zwei Jahre Log-Fenster zurueck.
+ * - **Erst ab dem Anlegen.** Ohne das faerbte der Kalender einer gestern
+ *   angelegten Gewohnheit die vollen zwei Jahre davor gruen, und die Statistik
+ *   rechnete sie als geschafft mit.
+ *
+ * Die Flamme sieht diese Schenkung seit dem 14.08.2026 NICHT mehr - sie zaehlt
+ * nur Tage mit echtem Eintrag (siehe flammenZahl weiter unten).
  *
  * `angelegtAm` ist `gewohnheiten.created_at` (Datum reicht, Uhrzeit egal).
  */
@@ -145,126 +149,27 @@ export function stillerTagZaehlt(gewohnheit, datum, heute) {
 }
 
 /**
- * Die stillen Tage einer Obergrenze in die gruene Menge nachtragen - alles
- * zwischen `ab` und gestern, wozu es keine Zeile gibt. `vorhandene` sind die
- * Daten, zu denen eine Zeile existiert (egal mit welchem Status): ein Tag
- * ueber der Grenze bleibt rot, er ist ja eingetragen.
- */
-export function ergaenzeStilleTage(gruene, gewohnheit, vorhandene, ab, heute) {
-  if (!istObergrenze(gewohnheit)) return gruene;
-  const vorhanden = vorhandene instanceof Set ? vorhandene : new Set(vorhandene);
-  const angelegt = String(gewohnheit.created_at || "").slice(0, 10);
-  let tag = angelegt > ab ? angelegt : ab;
-  while (tag < heute) {
-    if (!vorhanden.has(tag)) gruene.add(tag);
-    tag = tagPlus(tag, 1);
-  }
-  return gruene;
-}
-
-/**
- * Laenge der aktuellen Straehne, in Tagen.
+ * Die Zahl hinter der Flamme: an WIE VIELEN Tagen diese Gewohnheit erledigt
+ * wurde. Insgesamt, nicht am Stueck.
  *
- * Zaehlt von heute rueckwaerts, solange die Tage gruen sind. Ist HEUTE noch
- * nicht gruen, beginnt die Zaehlung bei gestern - sonst staende die Straehne
- * jeden Morgen um 0:01 Uhr auf null, obwohl der Tag gerade erst angefangen hat.
+ * Bis zum 14.08.2026 war das eine Straehne - Tage in Folge, ein einziger
+ * Fehltag setzte sie auf null, und jeder Rhythmus brachte seine eigene
+ * Zaehlweise mit (nur geplante Tage bei 'wochentage', ganze WOCHEN bei
+ * 'x_pro_woche'). Hendriks Entscheidung, gefragt: die Flamme soll nur noch
+ * zaehlen, wie oft er es geschafft hat. Damit faellt die
+ * Rhythmus-Unterscheidung ersatzlos weg - ein erledigter Tag ist ein
+ * erledigter Tag, egal ob er geplant war -, und die Zahl geht nie zurueck,
+ * ausser man loescht einen Eintrag.
  *
- * Weil live aus den gespeicherten Mengen gerechnet wird, heilt die Straehne
- * beim Nachtragen von selbst. Genau so gewollt: traegst du einen gelben Tag
- * nachtraeglich voll, war die Kette rueckwirkend nie unterbrochen.
- */
-export function straehne(gruene, heute) {
-  let tag = gruene.has(heute) ? heute : tagPlus(heute, -1);
-  let laenge = 0;
-  // Deckel gegen eine Endlosschleife bei kaputten Daten. 10 Jahre am Stueck
-  // waeren beachtlich, aber irgendwo muss Schluss sein.
-  while (gruene.has(tag) && laenge < 3700) {
-    laenge++;
-    tag = tagPlus(tag, -1);
-  }
-  return laenge;
-}
-
-// Wochentag-Index eines Datums, 0=Mo .. 6=So - dieselbe Verschiebung wie in
-// montagVon(). Bit i (1<<i) dieses Index ist die Position in wochentage_maske.
-function wochentagIndex(datum) {
-  const [j, m, t] = datum.split("-").map(Number);
-  return (new Date(Date.UTC(j, m - 1, t)).getUTCDay() + 6) % 7;
-}
-
-function istGeplant(datum, maske) {
-  return (maske & (1 << wochentagIndex(datum))) !== 0;
-}
-
-/**
- * Straehne fuer den Rhythmus 'wochentage': zaehlt geplante Tage in Folge,
- * nicht-geplante Kalendertage werden beim Rueckwaertslaufen stillschweigend
- * uebersprungen - nur ein geplanter, aber nicht gruener Tag bricht die Kette.
+ * Nirgends gespeichert, bei jeder Abfrage live aus den Mengen gerechnet:
+ * ein nachgetragener Tag hebt die Zahl von selbst, ein geloeschter senkt sie.
  *
- * Wie bei straehne() zaehlt ein geplanter, aber noch nicht abgehakter
- * heutiger Tag nicht als Bruch - sonst stuende die Straehne jeden Morgen auf
- * null, bevor ueberhaupt Zeit war, ihn zu erledigen.
+ * `gruene` enthaelt ausschliesslich Tage mit ECHTEM Eintrag. Die geschenkten
+ * Tage einer Obergrenze (stillerTagZaehlt) gehoeren ausdruecklich nicht dazu:
+ * wer nichts eintraegt, treibt die Flamme nicht hoch. Fuer Kalenderfarbe,
+ * Tagesbilanz und Statistik gilt die Schenkung unveraendert weiter - nur die
+ * Flamme sieht sie nicht mehr.
  */
-export function straehneWochentage(gruene, heute, maske) {
-  let tag = (istGeplant(heute, maske) && !gruene.has(heute)) ? tagPlus(heute, -1) : heute;
-
-  let laenge = 0;
-  // Deckel ueber Kalendertage, nicht ueber geplante Tage: bei nur einem
-  // Wochentag pro Woche waeren 3700 geplante Tage ueber 71 Jahre verteilt.
-  let kalendertage = 0;
-  while (kalendertage < 26000) {
-    kalendertage++;
-    if (!istGeplant(tag, maske)) { tag = tagPlus(tag, -1); continue; }
-    if (!gruene.has(tag)) break;
-    laenge++;
-    tag = tagPlus(tag, -1);
-  }
-  return laenge;
-}
-
-function grueneInWoche(gruene, wocheStart) {
-  let n = 0;
-  for (let i = 0; i < 7; i++) if (gruene.has(tagPlus(wocheStart, i))) n++;
-  return n;
-}
-
-/**
- * Straehne fuer den Rhythmus 'x_pro_woche': zaehlt nicht Tage, sondern ganze
- * Wochen in Folge, in denen mindestens `ziel` Tage gruen waren.
- *
- * Die laufende Woche zaehlt nur mit, wenn ihr Ziel JETZT schon erreicht ist -
- * sonst stuende die Straehne montags frueh auf null, obwohl die Woche gerade
- * erst angefangen hat.
- */
-export function straehneXProWoche(gruene, heute, ziel) {
-  const zielZahl = Math.max(1, Number(ziel) || 1);
-  let wocheStart = montagVon(heute);
-  if (grueneInWoche(gruene, wocheStart) < zielZahl) wocheStart = tagPlus(wocheStart, -7);
-
-  let laenge = 0;
-  let wochen = 0;
-  while (wochen < 3700) {
-    wochen++;
-    if (grueneInWoche(gruene, wocheStart) < zielZahl) break;
-    laenge++;
-    wocheStart = tagPlus(wocheStart, -7);
-  }
-  return laenge;
-}
-
-/**
- * Straehne je nach Rhythmus-Typ ueber die passende Funktion rechnen - der
- * gemeinsame Einstiegspunkt fuer beide Endpunkte (Bootstrap-GET und
- * Tag-Speichern), damit die Zuordnung Rhythmus -> Funktion nur an einer
- * Stelle steht. `gewohnheit` braucht dafuer `rhythmus`, `wochentage_maske`,
- * `wochenziel` (Rohspalten-Namen wie in der DB).
- */
-export function straehneFuer(gewohnheit, gruene, heute) {
-  if (gewohnheit.rhythmus === "wochentage") {
-    return straehneWochentage(gruene, heute, gewohnheit.wochentage_maske);
-  }
-  if (gewohnheit.rhythmus === "x_pro_woche") {
-    return straehneXProWoche(gruene, heute, gewohnheit.wochenziel);
-  }
-  return straehne(gruene, heute);
+export function flammenZahl(gruene) {
+  return gruene ? gruene.size : 0;
 }

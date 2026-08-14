@@ -6,17 +6,15 @@
  * setzt. Es gibt keinen Uebertrag von heute auf gestern - jeder Tag steht fuer
  * sich, und die Zahl im Verlauf ist die, die an dem Tag wirklich zusammenkam.
  *
- * Antwortet mit der neu berechneten Straehne, damit die App nicht alles neu
+ * Antwortet mit der neu berechneten Flamme, damit die App nicht alles neu
  * laden muss, um eine Zahl zu aktualisieren.
  */
 
 import { json, liesJson } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
 import {
-  pruefeHeute, pruefeLogDatum, tagPlus, status, straehneFuer, ergaenzeStilleTage, MAX_MENGE,
+  pruefeHeute, pruefeLogDatum, status, flammenZahl, MAX_MENGE,
 } from "../../_lib/tag.js";
-
-const LOG_TAGE = 730;
 
 export async function onRequestPut({ request, env }) {
   const { nutzerId, fehler } = await nutzerOderFehler(request, env);
@@ -86,20 +84,18 @@ export async function onRequestPut({ request, env }) {
       ).bind(id, datum, wert, gewohnheit.zielmenge).run();
     }
 
-    // Straehne frisch rechnen. Ein eigener Aufruf, weil sich durch einen
-    // nachgetragenen Tag mitten in der Kette weit mehr aendern kann als nur
-    // der eine Tag - genau das ist ja der Sinn des rueckwirkenden Heilens.
+    // Flamme frisch rechnen. Ein eigener Aufruf, weil ein nachgetragener oder
+    // geloeschter Tag die Zahl aendert, ohne dass der heutige Eintrag etwas
+    // damit zu tun haette. Ohne Datumsgrenze, wie im Bootstrap (index.js) -
+    // sonst haette die Flamme hier einen anderen Wert als dort.
     const alle = (await env.DB.prepare(
-      `SELECT datum, menge, ziel_damals FROM gewohnheit_logs
-        WHERE gewohnheit_id = ? AND datum >= ?`
-    ).bind(id, tagPlus(heute, -LOG_TAGE)).all()).results;
+      "SELECT datum, menge, ziel_damals FROM gewohnheit_logs WHERE gewohnheit_id = ?"
+    ).bind(id).all()).results;
 
     const gruene = new Set();
-    const mitZeile = new Set();
     let neuerStatus = "offen";
     let zielDesTages = gewohnheit.zielmenge;
     for (const l of alle) {
-      mitZeile.add(l.datum);
       const ziel = l.ziel_damals != null ? l.ziel_damals : gewohnheit.zielmenge;
       const st = status(gewohnheit.typ, l.menge, ziel, gewohnheit.richtung);
       if (st === "erledigt") gruene.add(l.datum);
@@ -108,9 +104,6 @@ export async function onRequestPut({ request, env }) {
         zielDesTages = ziel;
       }
     }
-    // Bei einer Obergrenze zaehlen die Tage ohne Zeile mit - sonst haette die
-    // Straehne hier einen anderen Wert als im Bootstrap (index.js).
-    ergaenzeStilleTage(gruene, gewohnheit, mitZeile, tagPlus(heute, -LOG_TAGE), heute);
 
     return json({
       ok: true,
@@ -119,7 +112,7 @@ export async function onRequestPut({ request, env }) {
       menge: geloescht ? 0 : wert,
       ziel: zielDesTages,
       status: neuerStatus,
-      straehne: straehneFuer(gewohnheit, gruene, heute),
+      straehne: flammenZahl(gruene),
     });
   } catch (e) {
     return json({ error: "Datenbankfehler beim Speichern" }, 500);

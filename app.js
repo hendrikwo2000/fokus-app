@@ -71,10 +71,13 @@ function formatDatum(iso) {
 /**
  * Zahl mit passender Einheit.
  *
- * Zwei Faelle, die im Deutschen auseinandergehen: "🔥 2 Tage" steht fuer sich
- * (Nominativ), "5 von 14 Tagen" steht hinter "von" (Dativ). Ohne die
+ * Zwei Faelle, die im Deutschen auseinandergehen: "2 Tage geschafft" steht fuer
+ * sich (Nominativ), "5 von 14 Tagen" steht hinter "von" (Dativ). Ohne die
  * Unterscheidung liest sich das eine oder das andere falsch.
  * Der Schluessel ist die Mehrzahl, weil statistik.js sie so schickt.
+ *
+ * Die Flamme laeuft NICHT hierueber: sie zaehlt seit dem 14.08.2026 in "Mal",
+ * und das beugt sich nicht.
  */
 const EINHEIT_FORMEN = {
   Tage: { eins: "Tag", viele: "Tage", vieleDativ: "Tagen" },
@@ -157,9 +160,10 @@ async function api(pfad, optionen = {}) {
  * Timer ist das Absicht: er rechnet serverseitig aus dem Startzeitpunkt, eine
  * Stunde spaeter nachgereicht waere die Sitzung schlicht gelogen.
  *
- * Was die Warteschlange NICHT kann: die Flamme mitrechnen. Die haengt an der
- * ganzen Historie samt Rhythmus - sie bleibt offline auf ihrem letzten Wert
- * stehen und stimmt nach dem Nachliefern von selbst wieder.
+ * Was die Warteschlange NICHT kann: die Flamme mitrechnen. Sie haengt an der
+ * ganzen Historie - offline waere nicht sicher zu sagen, ob der Tag nicht
+ * ohnehin schon zaehlte. Sie bleibt deshalb auf ihrem letzten Wert stehen und
+ * stimmt nach dem Nachliefern von selbst wieder.
  */
 const WARTE_SCHLUESSEL = "fokus_warteschlange";
 const STAND_SCHLUESSEL = "fokus_stand";
@@ -877,12 +881,11 @@ function renderHeute() {
     const straehne = state.straehnen[g.id] || 0;
     const st = document.createElement("span");
     st.className = "straehne" + (straehne > 0 ? " aktiv" : "");
-    // Bei 'x_pro_woche' zaehlt straehneXProWoche() in functions/_lib/tag.js
-    // ganze WOCHEN, nicht Tage - die Zahl braucht deshalb die passende
-    // Einheit, sonst steht bei einer Woche "1 Tage" auf der Karte.
-    st.textContent = straehne > 0
-      ? `🔥 ${mitEinheit(straehne, g.rhythmus === "x_pro_woche" ? "Wochen" : "Tage")}`
-      : "keine Flamme";
+    // "Mal", nicht "Tage": die Flamme zaehlt seit dem 14.08.2026 alle
+    // erledigten Tage zusammen, nicht die am Stueck (flammenZahl in
+    // functions/_lib/tag.js). "3 Tage" haette weiter nach einer Kette
+    // geklungen - und der Rhythmus spielt keine Rolle mehr.
+    st.textContent = straehne > 0 ? `🔥 ${straehne} Mal` : "keine Flamme";
     zeile.appendChild(st);
 
     // Offline abgehakt und noch nicht beim Server. Die Karte zeigt trotzdem
@@ -1036,11 +1039,10 @@ async function setzeTag(gewohnheit, datum, menge, loeschen = false) {
   renderHeute();
   renderVerlauf();
 
-  // Nur melden, wenn die Straehne durch einen NACHGETRAGENEN Tag gewachsen
+  // Nur melden, wenn die Flamme durch einen NACHGETRAGENEN Tag gewachsen
   // ist - beim normalen Abhaken von heute sieht man die Zahl ohnehin.
   if (datum !== state.heute && d.straehne > vorher) {
-    const einheit = gewohnheit.rhythmus === "x_pro_woche" ? "Wochen" : "Tage";
-    melde(`${formatDatum(datum)} nachgetragen — Flamme jetzt ${mitEinheit(d.straehne, einheit)}`);
+    melde(`${formatDatum(datum)} nachgetragen — Flamme jetzt ${d.straehne} Mal`);
   }
   return true;
 }

@@ -11,7 +11,7 @@
 import { json, liesJson } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
 import {
-  pruefeHeute, istDatum, tagPlus, status, straehneFuer, ergaenzeStilleTage, MAX_MENGE,
+  pruefeHeute, istDatum, tagPlus, status, flammenZahl, MAX_MENGE,
 } from "../../_lib/tag.js";
 
 // Genug fuer ein Eigennutz-Werkzeug und ein Deckel gegen versehentliche
@@ -142,23 +142,26 @@ export async function onRequestGet({ request, env }) {
         ORDER BY archiviert, position, created_at`
     ).bind(nutzerId).all()).results;
 
-    // Alle Logs des Nutzers in EINER Abfrage, volle 730 Tage - sowohl fuer die
-    // Straehne als auch fuer den Kalender-Verlauf, der beliebig weit in diese
-    // Historie zurueckblaettern kann.
+    // Alle Logs des Nutzers in EINER Abfrage, OHNE Datumsgrenze. Die Flamme
+    // zaehlt seit dem 14.08.2026 alle erledigten Tage, nicht nur die der
+    // letzten 730 - eine Grenze hier waere ein stiller Deckel auf die Zahl.
+    // Der Kalender-Verlauf bleibt trotzdem bei 730 Tagen, siehe `sichtbar`
+    // unten: was der Client zeichnen kann, begrenzt `historieAb`.
     const logs = (await env.DB.prepare(
       `SELECT l.gewohnheit_id, l.datum, l.menge, l.ziel_damals
          FROM gewohnheit_logs l
          JOIN gewohnheiten g ON g.id = l.gewohnheit_id
-        WHERE g.user_id = ? AND l.datum >= ?
+        WHERE g.user_id = ?
         ORDER BY l.datum`
-    ).bind(nutzerId, historieAb).all()).results;
+    ).bind(nutzerId).all()).results;
 
     const infoVon = {};
     for (const g of gewohnheiten) infoVon[g.id] = g;
 
-    // Zwei Ableitungen aus denselben Zeilen: die volle Historie fuer den
-    // Client und die Menge der gruenen Tage je Gewohnheit, aus der die
-    // Straehne faellt.
+    // Zwei Ableitungen aus denselben Zeilen, mit unterschiedlicher Reichweite:
+    // `sichtbar` ist der Kalender-Verlauf fuer den Client und bleibt auf die
+    // 730 Tage ab `historieAb` begrenzt, `gruene` traegt die Flammen-Zahl und
+    // zaehlt ueber die ganze Historie.
     const sichtbar = {};
     const gruene = {};
     for (const l of logs) {
@@ -172,19 +175,17 @@ export async function onRequestGet({ request, env }) {
       if (st === "erledigt") {
         (gruene[l.gewohnheit_id] || (gruene[l.gewohnheit_id] = new Set())).add(l.datum);
       }
+      if (l.datum < historieAb) continue;
       const eimer = sichtbar[l.gewohnheit_id] || (sichtbar[l.gewohnheit_id] = {});
       eimer[l.datum] = { menge: l.menge, ziel, status: st };
     }
 
+    // Kein ergaenzeStilleTage() mehr: die geschenkten Tage einer Obergrenze
+    // treiben die Flamme seit dem 14.08.2026 nicht mehr hoch (siehe
+    // flammenZahl in _lib/tag.js). Fuer Kalender und Statistik gilt die
+    // Schenkung weiter - die rechnen ueber stillerTagZaehlt(), nicht hier.
     const straehnen = {};
-    for (const g of gewohnheiten) {
-      const gruen = gruene[g.id] || (gruene[g.id] = new Set());
-      // Bei einer Obergrenze zaehlen auch die Tage mit, an denen gar nichts
-      // eingetragen wurde (siehe stillerTagZaehlt in _lib/tag.js). Die Daten
-      // mit Zeile stehen schon in `sichtbar`.
-      ergaenzeStilleTage(gruen, g, Object.keys(sichtbar[g.id] || {}), historieAb, heute);
-      straehnen[g.id] = straehneFuer(g, gruen, heute);
-    }
+    for (const g of gewohnheiten) straehnen[g.id] = flammenZahl(gruene[g.id]);
 
     return json({
       email: nutzer.email,

@@ -17,13 +17,9 @@
 import { json } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
 import {
-  pruefeHeute, tagPlus, status, straehneFuer, ergaenzeStilleTage, istObergrenze,
+  pruefeHeute, status, flammenZahl, istObergrenze,
 } from "../../_lib/tag.js";
 import { istHeuteDran, ruhtHeute, erledigtDieseWoche } from "../../_lib/heute.js";
-
-// Wie weit zurueck Logs fuer die Straehne geladen werden - dieselbe Spanne wie
-// im Bootstrap, sonst faellt die Zahl hier anders aus als dort.
-const LOG_TAGE = 730;
 
 export async function onRequestGet({ request, env }) {
   const { nutzerId, fehler } = await nutzerOderFehler(request, env);
@@ -32,8 +28,6 @@ export async function onRequestGet({ request, env }) {
   const heute = new URL(request.url).searchParams.get("heute") || "";
   const meldung = pruefeHeute(heute);
   if (meldung) return json({ error: meldung }, 400);
-
-  const historieAb = tagPlus(heute, -LOG_TAGE);
 
   try {
     const gewohnheiten = (await env.DB.prepare(
@@ -48,12 +42,15 @@ export async function onRequestGet({ request, env }) {
       return json({ heute, gewohnheiten: [], wochenFertig: [], erledigt: 0, gesamt: 0 });
     }
 
+    // Ohne Datumsgrenze, wie im Bootstrap (index.js): die Flamme zaehlt alle
+    // erledigten Tage, ein Fenster hier waere ein stiller Deckel auf die Zahl -
+    // und sie fiele anders aus als in der eigenen App.
     const logs = (await env.DB.prepare(
       `SELECT l.gewohnheit_id, l.datum, l.menge, l.ziel_damals
          FROM gewohnheit_logs l
          JOIN gewohnheiten g ON g.id = l.gewohnheit_id
-        WHERE g.user_id = ? AND l.datum >= ?`
-    ).bind(nutzerId, historieAb).all()).results;
+        WHERE g.user_id = ?`
+    ).bind(nutzerId).all()).results;
 
     // Je Gewohnheit die Tage in der Form, die _lib/heute.js erwartet.
     const zielVon = {};
@@ -91,13 +88,13 @@ export async function onRequestGet({ request, env }) {
         ? status(g.typ, heutiger.menge, heutiger.ziel, g.richtung)
         : (ruhtHeute(g, tage, heute) ? "ruht" : "offen");
 
-      // Straehne aus der vollen Historie, inklusive der stillen Tage einer
-      // Obergrenze - dieselbe Rechnung wie im Bootstrap.
+      // Flamme aus der vollen Historie, aber NUR aus Tagen mit echtem Eintrag -
+      // dieselbe Rechnung wie im Bootstrap. Die stillen Tage einer Obergrenze
+      // bleiben draussen (siehe flammenZahl in _lib/tag.js).
       const gruene = new Set();
       for (const [datum, eintrag] of Object.entries(tage)) {
         if (status(g.typ, eintrag.menge, eintrag.ziel, g.richtung) === "erledigt") gruene.add(datum);
       }
-      ergaenzeStilleTage(gruene, g, Object.keys(tage), historieAb, heute);
 
       liste.push({
         id: g.id,
@@ -108,10 +105,12 @@ export async function onRequestGet({ request, env }) {
         menge: heutiger ? heutiger.menge : 0,
         ziel,
         zustand,
-        straehne: straehneFuer(g, gruene, heute),
-        // Bei 'x_pro_woche' zaehlt die Straehne ganze WOCHEN, nicht Tage - ohne
-        // die Einheit stuende in der Anzeige "1 Tage" fuer eine Woche.
-        straehneEinheit: g.rhythmus === "x_pro_woche" ? "Wochen" : "Tage",
+        straehne: flammenZahl(gruene),
+        // Seit dem 14.08.2026 immer "Mal": die Flamme zaehlt keine Kette mehr,
+        // sondern Treffer. "3 Tage" haette weiter nach "am Stueck" geklungen.
+        // Das Feld bleibt trotzdem stehen - die ToDo-Liste deployt getrennt,
+        // und solange sie eine Einheit erwartet, soll sie eine bekommen.
+        straehneEinheit: "Mal",
         wochenziel: g.rhythmus === "x_pro_woche" ? g.wochenziel : null,
         wochenErledigt: g.rhythmus === "x_pro_woche" ? erledigtDieseWoche(g, tage, heute) : null,
       });

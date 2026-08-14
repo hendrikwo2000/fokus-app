@@ -173,29 +173,36 @@ werden — `!= null`, sonst springt eine 0 beim Bearbeiten still auf 30.
 `stillerTagZaehlt()` in `_lib/tag.js`: bei `richtung='hoechstens'` gilt ein Tag
 **ohne Eintrag** rückwirkend als erledigt. Wer gar nicht auf Instagram war, hat
 die Grenze eingehalten, auch ohne das jeden Abend zu bestätigen — ohne diese
-Regel müsste man täglich aktiv eine 0 eintragen, sonst sähen Flamme und
-Erfüllungsquote schlechter aus als die Wirklichkeit.
+Regel müsste man täglich aktiv eine 0 eintragen, sonst sähe die Erfüllungsquote
+schlechter aus als die Wirklichkeit.
 
 Zwei Schranken, ohne die die Regel Unsinn ergibt:
 
 - **Nur die Vergangenheit.** Heute wird nicht grün, sonst wäre der Tag fertig,
   bevor er vorbei ist — ein Ausrutscher am Abend müsste ihn nachträglich wieder
   rot machen. Heute *ruht* stattdessen, siehe unten.
-- **Erst ab `gewohnheiten.created_at`.** Ohne das liefe die Straehne einer
-  gestern angelegten Gewohnheit über das volle 730-Tage-Fenster zurück.
+- **Erst ab `gewohnheiten.created_at`.** Ohne das färbte der Kalender einer
+  gestern angelegten Gewohnheit das volle 730-Tage-Fenster davor grün.
   Deshalb steht `created_at` jetzt in jedem SELECT, der Tage bewertet, und als
   `angelegtAm` (nur Datum) in der API-Antwort.
 
-Vier Stellen zählen grüne Tage und müssen dieselbe Regel anwenden — weicht eine
-ab, springt die Flamme je nach Endpunkt: `index.js` (Bootstrap), `log.js`
-(nach jedem Schreiben), `statistik.js`, `push/pruefen.js`. Die ersten beiden
-benutzen `ergaenzeStilleTage()`, die anderen `stillerTagZaehlt()` direkt.
-Im Client spiegelt `stillerTagZaehlt()`/`zustandVon()` in `app.js` dasselbe für
-Kalender und Wochenfortschritt.
+**Die Flamme ist seit dem 14.08.2026 ausgenommen.** Sie zählt ausschließlich
+Tage mit echtem Eintrag — wer nichts einträgt, treibt sie nicht hoch (Hendriks
+Entscheidung, gefragt). `ergaenzeStilleTage()` gibt es deshalb nicht mehr.
+Damit gilt die Schenkung nur noch an drei Stellen, die dieselbe Regel anwenden
+müssen: `statistik.js`, `push/pruefen.js` und `_lib/heute.js` (`zustandVon()`),
+alle über `stillerTagZaehlt()` direkt. Im Client spiegelt
+`stillerTagZaehlt()`/`zustandVon()` in `app.js` dasselbe für Kalender und
+Wochenfortschritt.
 
 **Sichtbare Folge, die man erwarten sollte:** Der Kalender einer Obergrenze ist
 ab dem Anlegetag durchgehend grün — der Tooltip unterscheidet „nichts
 eingetragen, also im Rahmen" von einem echten Eintrag.
+
+**Und die Folge daraus, die zunächst falsch aussieht:** Unter einem
+durchgehend grünen Kalender kann eine kleine Flammen-Zahl stehen. Das ist kein
+Fehler, sondern genau die Trennung von oben — der Kalender zeigt „im Rahmen
+geblieben", die Flamme zeigt „aktiv eingetragen".
 
 ### Heute ruht eine Obergrenze, bis etwas drinsteht
 
@@ -236,8 +243,9 @@ war spätestens am Wochenende weg.
 
 `istHeuteDran()` (`app.js`) und `nochOffen()` (`push/pruefen.js`) fallen bei
 einer Obergrenze deshalb auf die Tagesprüfung durch, genau wie `taeglich`.
-Das Wochenziel bleibt die Messlatte für Fortschrittszeile und Strähne — nur
-nicht mehr dafür, ob die Karte erscheint.
+Das Wochenziel bleibt die Messlatte für die Fortschrittszeile — nur nicht mehr
+dafür, ob die Karte erscheint. Für die Flamme zählt es seit dem 14.08.2026 gar
+nicht mehr, die kennt nur noch erledigte Tage.
 
 Die Karte steht damit die ganze Woche da, verlangt aber nichts: seit dem
 11.08.2026 ruht eine Obergrenze ohne Eintrag (siehe [Heute ruht eine
@@ -281,18 +289,37 @@ die Anzeige gegen das neue.
 Die Oberfläche rechnet **immer** gegen `tag.ziel`, nie gegen
 `gewohnheit.zielmenge` — sonst laufen Balken und Haken auseinander.
 
-### Strähnen heilen rückwirkend
+### Die Flamme zählt Treffer, keine Kette
 
-Die Strähne wird bei jeder Abfrage live aus den gespeicherten Mengen gerechnet,
-nirgends gespeichert. Trägst du einen gelben Tag nachträglich voll, war die Kette
-rückwirkend nie unterbrochen — dafür ist keine Extra-Logik nötig.
+`flammenZahl()` in `_lib/tag.js` ist die ganze Rechnung: **wie viele Tage haben
+den Status „erledigt".** Nicht am Stück, nicht nach Rhythmus gewichtet, kein
+Zurücksetzen bei einem Fehltag. Ein ausgelassener Tag kostet nichts, er bringt
+nur nichts.
 
-Gezählt wird von heute rückwärts. Ist **heute** noch nicht grün, beginnt die
-Zählung bei gestern: sonst stünde die Strähne jeden Morgen um 0:01 Uhr auf null,
-obwohl der Tag gerade erst angefangen hat.
+**Bis zum 14.08.2026 war das eine Strähne** — Tage in Folge, mit drei
+Zählweisen (`straehne()` für `taeglich`, `straehneWochentage()` für geplante
+Tage, `straehneXProWoche()` für ganze Wochen) und einem Verteiler
+`straehneFuer()`. Alle vier sind ersatzlos weg, samt der Sonderfälle im Client.
+Hendriks Entscheidung, gefragt — die Alternative war „streng in Folge, jeder
+Fehltag setzt auf 0".
 
-Geladen werden Logs der letzten 730 Tage. Das deckelt zugleich die maximal
-darstellbare Strähne und hält die Abfrage klein.
+Was von der alten Rechnung bleibt: Die Zahl wird bei jeder Abfrage **live aus
+den gespeicherten Mengen** gerechnet, nirgends abgelegt. Ein nachgetragener Tag
+hebt sie von selbst, ein gelöschter senkt sie.
+
+**Die Logs werden dafür ohne Datumsgrenze geladen** (`index.js`, `heute.js`,
+`log.js`). Das alte 730-Tage-Fenster wäre jetzt ein stiller Deckel auf die
+Zahl. Der Kalender-Verlauf bleibt trotzdem auf 730 Tage begrenzt: `index.js`
+filtert beim Füllen von `sichtbar` gegen `historieAb`, nicht mehr im SQL.
+
+**Die Anzeige heißt „🔥 3 Mal"**, nicht mehr „🔥 3 Tage" — „Tage" hätte
+weiter nach einer Kette geklungen. `straehneEinheit` in der Antwort von
+`heute.js` ist deshalb konstant `"Mal"`; das Feld bleibt nur bestehen, weil die
+ToDo-Liste getrennt deployt (siehe `flammenText()` in deren `fokus.js`).
+
+Die API-Feldnamen `straehne`/`straehnen` sind bewusst **nicht** umbenannt
+worden: sie sind die Schnittstelle zwischen zwei getrennt deployten Apps, und
+ein Umbenennen hätte für null Nutzen ein Fenster mit `undefined` aufgemacht.
 
 ## Die Tagesliste für die ToDo-Liste
 
@@ -308,7 +335,7 @@ und dann zeigten die beiden Apps für denselben Tag verschiedene Zahlen.
 **`GET /api/gewohnheiten/heute?heute=`** liefert deshalb alles fertig
 gerechnet: welche Gewohnheiten heute erscheinen, ihr Zustand
 (`offen`/`teilweise`/`erledigt`/`ueberschritten`/`ruht`), Menge, Ziel, Flamme
-samt Einheit (`Tage` oder `Wochen`), der Wochenfortschritt bei `x_pro_woche`
+samt Einheit (seit dem 14.08.2026 konstant `Mal`), der Wochenfortschritt bei `x_pro_woche`
 und die Tagesbilanz. Der Client dort entscheidet nichts selbst, er zeichnet
 nur. Geschrieben wird weiter über `PUT /api/gewohnheiten/log` — ein zweiter
 Schreibweg wäre eine zweite Stelle, an der `ziel_damals` falsch gesetzt werden
@@ -521,9 +548,10 @@ Drei Punkte, an denen man sonst stolpert:
 
 Den Status rechnet die App offline selbst (`statusVon()` in `app.js`) — ein
 **Spiegel von `status()` in `_lib/tag.js`**. Ändert sich die Regel dort, muss
-sie hier mit. Die Flamme wird bewusst NICHT gespiegelt: sie hängt an der
-ganzen Historie samt Rhythmus, steht offline auf ihrem letzten Wert und
-stimmt nach dem Nachliefern von selbst wieder.
+sie hier mit. Die Flamme wird bewusst NICHT gespiegelt: sie hängt an der ganzen
+Historie — offline wäre nicht sicher zu sagen, ob der Tag nicht ohnehin schon
+zählte. Sie steht offline auf ihrem letzten Wert und stimmt nach dem
+Nachliefern von selbst wieder.
 
 Beim Abmelden werden beide Schlüssel gelöscht (`vergissStand()`), sonst
 blitzte der Bestand des vorherigen Kontos auf, wenn sich an demselben Gerät
@@ -635,7 +663,7 @@ laden. HttpOnly stört nicht — der Server prüft nur den Wert.
 | `POST /api/auth/logout` | Sitzung serverseitig löschen (gilt für beide Apps) |
 | `GET /api/auth/status` | `{angemeldet}` — immer 200, wird im Sekundentakt gepollt |
 | `POST /api/waitlist` | Eintragen für Fokus-Zugang (`quelle='fokus'`). Existiert das Konto schon, wird `fokus_zugang` direkt gesetzt statt auf `todo.it-wolf.org/admin` zu verweisen. |
-| `GET /api/gewohnheiten?heute=` | Bootstrap: Gewohnheiten, volle Log-Historie (`historieAb` bis `heute`), Strähnen |
+| `GET /api/gewohnheiten?heute=` | Bootstrap: Gewohnheiten, Log-Historie für den Kalender (`historieAb` bis `heute`), Flammen-Zahlen (über die **ganze** Historie, siehe [Die Flamme zählt Treffer](#die-flamme-zählt-treffer-keine-kette)) |
 | `GET /api/gewohnheiten/heute?heute=` | Die Tagesliste fertig gerechnet (Auswahl, Zustand, Flamme). Für die ToDo-Liste, siehe [Die Tagesliste für die ToDo-Liste](#die-tagesliste-für-die-todo-liste). |
 | `POST/PATCH/DELETE /api/gewohnheiten` | Anlegen, ändern/archivieren, endgültig löschen |
 | `PUT /api/gewohnheiten/log` | Einen Tag setzen — der einzige Schreibweg für Tage. `loeschen: true` stellt ihn wieder auf „offen" (nur bei einer Obergrenze nötig, siehe oben). |
