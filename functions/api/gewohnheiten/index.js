@@ -11,8 +11,9 @@
 import { json, liesJson } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
 import {
-  pruefeHeute, istDatum, tagPlus, status, flammenZahl, MAX_MENGE,
+  pruefeHeute, istDatum, tagPlus, status, flammeFuer, MAX_MENGE,
 } from "../../_lib/tag.js";
+import { flammenModusVon } from "../../_lib/fokus.js";
 
 // Genug fuer ein Eigennutz-Werkzeug und ein Deckel gegen versehentliche
 // Massenanlage. Keine Zahl, die jemals im Weg stehen sollte.
@@ -180,12 +181,15 @@ export async function onRequestGet({ request, env }) {
       eimer[l.datum] = { menge: l.menge, ziel, status: st };
     }
 
-    // Kein ergaenzeStilleTage() mehr: die geschenkten Tage einer Obergrenze
-    // treiben die Flamme seit dem 14.08.2026 nicht mehr hoch (siehe
-    // flammenZahl in _lib/tag.js). Fuer Kalender und Statistik gilt die
-    // Schenkung weiter - die rechnen ueber stillerTagZaehlt(), nicht hier.
+    // Kein ergaenzeStilleTage(): die geschenkten Tage einer Obergrenze treiben
+    // die Flamme seit dem 14.08.2026 in keinem Modus hoch (siehe flammeFuer in
+    // _lib/tag.js). Fuer Kalender und Statistik gilt die Schenkung weiter -
+    // die rechnen ueber stillerTagZaehlt(), nicht hier.
+    const flammenModus = await flammenModusVon(env, nutzerId);
     const straehnen = {};
-    for (const g of gewohnheiten) straehnen[g.id] = flammenZahl(gruene[g.id]);
+    for (const g of gewohnheiten) {
+      straehnen[g.id] = flammeFuer(g, gruene[g.id] || new Set(), heute, flammenModus);
+    }
 
     return json({
       email: nutzer.email,
@@ -196,6 +200,9 @@ export async function onRequestGet({ request, env }) {
       todoZugang,
       historieAb,
       heute,
+      // Der Client braucht ihn zweimal: fuer die Stellung des Schalters in den
+      // Einstellungen und fuer die Einheit hinter der Zahl.
+      flammenModus,
       gewohnheiten: gewohnheiten.map(alsGewohnheit),
       logs: sichtbar,
       straehnen,

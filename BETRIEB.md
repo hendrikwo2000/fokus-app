@@ -113,7 +113,7 @@ kein Zeitfenster, in dem etwas bricht.
 | `gewohnheiten` | Name, Typ (`binaer`/`menge`), Zielmenge, Einheit, Rhythmus (`taeglich`/`wochentage`/`x_pro_woche`) mit Wochentage-Bitmaske bzw. Wochenziel, archiviert |
 | `gewohnheit_logs` | Ein Tag: `(gewohnheit_id, datum)` als Schlüssel, Menge, `ziel_damals` |
 | `fokus_sitzungen` | Start, geplante/echte Dauer, Pausen, vollständig |
-| `fokus_einstellungen` | Standarddauer pro Nutzer |
+| `fokus_einstellungen` | Standarddauer und Zählweise der Flamme, pro Nutzer |
 
 Fremdschlüssel auf `users(id)` mit `ON DELETE CASCADE` — löschst du dein Konto
 in der ToDo-Liste, räumt die Datenbank die Fokus-Daten selbst mit weg. Genau
@@ -186,9 +186,10 @@ Zwei Schranken, ohne die die Regel Unsinn ergibt:
   Deshalb steht `created_at` jetzt in jedem SELECT, der Tage bewertet, und als
   `angelegtAm` (nur Datum) in der API-Antwort.
 
-**Die Flamme ist seit dem 14.08.2026 ausgenommen.** Sie zählt ausschließlich
-Tage mit echtem Eintrag — wer nichts einträgt, treibt sie nicht hoch (Hendriks
-Entscheidung, gefragt). `ergaenzeStilleTage()` gibt es deshalb nicht mehr.
+**Die Flamme ist seit dem 14.08.2026 ausgenommen — in beiden Zählweisen.** Sie
+zählt ausschließlich Tage mit echtem Eintrag; wer nichts einträgt, treibt sie
+nicht hoch und bricht im Reihen-Modus sogar die Kette (Hendriks Entscheidung,
+zweimal gefragt). `ergaenzeStilleTage()` gibt es deshalb nicht mehr.
 Damit gilt die Schenkung nur noch an drei Stellen, die dieselbe Regel anwenden
 müssen: `statistik.js`, `push/pruefen.js` und `_lib/heute.js` (`zustandVon()`),
 alle über `stillerTagZaehlt()` direkt. Im Client spiegelt
@@ -291,31 +292,49 @@ Die Oberfläche rechnet **immer** gegen `tag.ziel`, nie gegen
 
 ### Die Flamme zählt Treffer, keine Kette
 
-`flammenZahl()` in `_lib/tag.js` ist die ganze Rechnung: **wie viele Tage haben
-den Status „erledigt".** Nicht am Stück, nicht nach Rhythmus gewichtet, kein
-Zurücksetzen bei einem Fehltag. Ein ausgelassener Tag kostet nichts, er bringt
-nur nichts.
+**Seit dem 15.08.2026 gibt es zwei Zählweisen, umschaltbar in den
+Einstellungen** (Hendriks Auftrag). Beide sitzen in `_lib/tag.js`,
+`flammeFuer()` ist der einzige Einstiegspunkt für alle drei Endpunkte:
 
-**Bis zum 14.08.2026 war das eine Strähne** — Tage in Folge, mit drei
-Zählweisen (`straehne()` für `taeglich`, `straehneWochentage()` für geplante
-Tage, `straehneXProWoche()` für ganze Wochen) und einem Verteiler
-`straehneFuer()`. Alle vier sind ersatzlos weg, samt der Sonderfälle im Client.
-Hendriks Entscheidung, gefragt — die Alternative war „streng in Folge, jeder
-Fehltag setzt auf 0".
+| Modus | Rechnung | Ein Fehltag |
+| --- | --- | --- |
+| `absolut` (Standard) | `flammenZahl()` — wie viele Tage haben den Status „erledigt" | kostet nichts, bringt nur nichts |
+| `reihe` | `straehne()` / `straehneWochentage()` / `straehneXProWoche()` je nach Rhythmus | setzt auf null |
 
-Was von der alten Rechnung bleibt: Die Zahl wird bei jeder Abfrage **live aus
-den gespeicherten Mengen** gerechnet, nirgends abgelegt. Ein nachgetragener Tag
-hebt sie von selbst, ein gelöschter senkt sie.
+`reihe` ist die Logik, die bis zum 14.08.2026 die einzige war — **exakt
+zurückgeholt**, auf Hendriks Wahl hin (die Alternativen waren „streng
+Kalendertage für alle" und „Rhythmus beachten, aber immer Tage zählen").
 
-**Die Logs werden dafür ohne Datumsgrenze geladen** (`index.js`, `heute.js`,
-`log.js`). Das alte 730-Tage-Fenster wäre jetzt ein stiller Deckel auf die
-Zahl. Der Kalender-Verlauf bleibt trotzdem auf 730 Tage begrenzt: `index.js`
-filtert beim Füllen von `sichtbar` gegen `historieAb`, nicht mehr im SQL.
+**Der Modus gilt kontoweit**, nicht pro Gerät: `fokus_einstellungen.flammen_modus`
+(siehe `migration-flammen-modus.sql`). Damit zieht das Fokus-Panel in der
+ToDo-Liste automatisch mit — es fragt `heute.js` ohnehin bei jedem Laden neu und
+brauchte dafür keine Zeile Code. Gelesen wird der Modus über `flammenModusVon()`
+in `_lib/fokus.js`, geschrieben über `PUT /api/fokus/einstellungen`.
 
-**Die Anzeige heißt „🔥 3 Mal"**, nicht mehr „🔥 3 Tage" — „Tage" hätte
-weiter nach einer Kette geklungen. `straehneEinheit` in der Antwort von
-`heute.js` ist deshalb konstant `"Mal"`; das Feld bleibt nur bestehen, weil die
-ToDo-Liste getrennt deployt (siehe `flammenText()` in deren `fokus.js`).
+Was für beide Modi gilt: Die Zahl wird bei jeder Abfrage **live aus den
+gespeicherten Mengen** gerechnet, nirgends abgelegt. Ein nachgetragener Tag
+hebt sie von selbst, ein gelöschter senkt sie. Und `gruene` enthält in beiden
+nur Tage mit echtem Eintrag — die geschenkten Tage einer Obergrenze zählen
+nicht mit und **brechen im Reihen-Modus sogar die Kette** (Hendriks
+Entscheidung, gefragt: „nur Einträge zählen"). Praktische Folge: Eine
+Obergrenze kommt im Reihen-Modus kaum über 1, weil sie dafür jeden Abend aktiv
+abgehakt werden müsste. Das ist bekannt und gewollt.
+
+**Die Logs werden ohne Datumsgrenze geladen** (`index.js`, `heute.js`,
+`log.js`). Das alte 730-Tage-Fenster wäre im absoluten Modus ein stiller Deckel
+auf die Zahl. Der Kalender-Verlauf bleibt trotzdem auf 730 Tage begrenzt:
+`index.js` filtert beim Füllen von `sichtbar` gegen `historieAb`, nicht im SQL.
+
+**Die Anzeige sieht in beiden Modi gleich aus — „🔥 3 Tage", nur mit einer
+anderen Zahl.** Ausdrückliche Vorgabe: An der Karte steht kein Hinweis auf die
+Zählweise, erklärt wird sie allein beim Schalter in den Einstellungen.
+
+**Der eine Ausreißer, den Hendrik kennt:** `x_pro_woche` zählt im Reihen-Modus
+ganze WOCHEN, dort steht dann „🔥 1 Woche". Er hat „die alte Logik exakt
+zurück" gewählt, obwohl in der Frage stand, dass die Anzeige damit nicht mehr
+überall gleich aussieht — **nicht als Versehen behandeln.** Die Regel steht in
+`flammenEinheit()` (Server) und gespiegelt in `flammenEinheitVon()` (`app.js`);
+die ToDo-Liste rät nicht, sondern bekommt `straehneEinheit` von `heute.js`.
 
 Die API-Feldnamen `straehne`/`straehnen` sind bewusst **nicht** umbenannt
 worden: sie sind die Schnittstelle zwischen zwei getrennt deployten Apps, und
@@ -335,7 +354,7 @@ und dann zeigten die beiden Apps für denselben Tag verschiedene Zahlen.
 **`GET /api/gewohnheiten/heute?heute=`** liefert deshalb alles fertig
 gerechnet: welche Gewohnheiten heute erscheinen, ihr Zustand
 (`offen`/`teilweise`/`erledigt`/`ueberschritten`/`ruht`), Menge, Ziel, Flamme
-samt Einheit (seit dem 14.08.2026 konstant `Mal`), der Wochenfortschritt bei `x_pro_woche`
+samt Einheit (`Tage`, nur bei `x_pro_woche` im Reihen-Modus `Wochen`), der Wochenfortschritt bei `x_pro_woche`
 und die Tagesbilanz. Der Client dort entscheidet nichts selbst, er zeichnet
 nur. Geschrieben wird weiter über `PUT /api/gewohnheiten/log` — ein zweiter
 Schreibweg wäre eine zweite Stelle, an der `ziel_damals` falsch gesetzt werden
@@ -663,14 +682,14 @@ laden. HttpOnly stört nicht — der Server prüft nur den Wert.
 | `POST /api/auth/logout` | Sitzung serverseitig löschen (gilt für beide Apps) |
 | `GET /api/auth/status` | `{angemeldet}` — immer 200, wird im Sekundentakt gepollt |
 | `POST /api/waitlist` | Eintragen für Fokus-Zugang (`quelle='fokus'`). Existiert das Konto schon, wird `fokus_zugang` direkt gesetzt statt auf `todo.it-wolf.org/admin` zu verweisen. |
-| `GET /api/gewohnheiten?heute=` | Bootstrap: Gewohnheiten, Log-Historie für den Kalender (`historieAb` bis `heute`), Flammen-Zahlen (über die **ganze** Historie, siehe [Die Flamme zählt Treffer](#die-flamme-zählt-treffer-keine-kette)) |
+| `GET /api/gewohnheiten?heute=` | Bootstrap: Gewohnheiten, Log-Historie für den Kalender (`historieAb` bis `heute`), Flammen-Zahlen (aus der **ganzen** Historie) und `flammenModus`, siehe [Die Flamme zählt Treffer](#die-flamme-zählt-treffer-keine-kette) |
 | `GET /api/gewohnheiten/heute?heute=` | Die Tagesliste fertig gerechnet (Auswahl, Zustand, Flamme). Für die ToDo-Liste, siehe [Die Tagesliste für die ToDo-Liste](#die-tagesliste-für-die-todo-liste). |
 | `POST/PATCH/DELETE /api/gewohnheiten` | Anlegen, ändern/archivieren, endgültig löschen |
 | `PUT /api/gewohnheiten/log` | Einen Tag setzen — der einzige Schreibweg für Tage. `loeschen: true` stellt ihn wieder auf „offen" (nur bei einer Obergrenze nötig, siehe oben). |
 | `PUT /api/gewohnheiten/reihenfolge` | `{ids: [...]}` — die vollständige Liste in der gewünschten Reihenfolge, schreibt `position` |
 | `GET /api/fokus?heute=` | Laufende Sitzung, Einstellungen, Wochenstatistik |
 | `POST /api/fokus/start` \| `/pause` \| `/stop` | Sitzung steuern (`pause` ist ein Umschalter). `start` nimmt `heute` und optional `geplanteMin`. |
-| `PUT /api/fokus/einstellungen` | Standarddauer |
+| `PUT /api/fokus/einstellungen` | Standarddauer (`arbeitMin`) und/oder Zählweise der Flamme (`flammenModus`: `absolut`/`reihe`). Beide Felder optional, aber eins muss kommen — geschickt wird nur, was sich ändert. |
 | `GET /api/export` | Alle eigenen Daten als JSON-Datei zum Herunterladen. Kein Gegenstück zum Zurückspielen. |
 | `POST /api/push/abonnieren` \| `/abbestellen` | Push-Abo speichern/löschen (angemeldet) |
 | `GET/POST /api/push/pruefen` | Cron-Ziel, kein Nutzer-Endpunkt — siehe [Benachrichtigungen](#benachrichtigungen) |

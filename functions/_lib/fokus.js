@@ -13,7 +13,13 @@
  * Der Countdown auf dem Bildschirm ist reine Anzeige. Gerechnet wird immer aus
  * `gestartet_am`. Nur so ueberlebt eine Sitzung Reload, Handysperre,
  * Verbindungsabbruch und Geraetewechsel - und genau das war die Vorgabe.
+ *
+ * Hier liegen ausserdem die persoenlichen Einstellungen (einstellungenVon),
+ * weil sie in derselben Tabelle stehen - inzwischen auch die Zaehlweise der
+ * Flamme, die mit dem Timer nichts zu tun hat.
  */
+
+import { FLAMMEN_MODUS_STANDARD } from "./tag.js";
 
 // Erlaubte Sitzungsdauer. Untergrenze 1 Minute (zum Ausprobieren), Obergrenze
 // 3 Stunden - laenger ist keine Fokus-Sitzung mehr, und die Deckelung in
@@ -84,11 +90,30 @@ export async function beendeSitzung(env, zeile) {
   };
 }
 
-// Standarddauer des Nutzers. Ohne eigene Zeile die 25 Minuten aus dem Schema -
-// so muss niemand erst etwas einstellen, bevor er zum ersten Mal startet.
-export async function arbeitMinVon(env, nutzerId) {
+/**
+ * Die persoenlichen Einstellungen. Ohne eigene Zeile die Vorgaben aus dem
+ * Schema - so muss niemand erst etwas einstellen, bevor er zum ersten Mal
+ * startet.
+ *
+ * Eine Abfrage fuer beide Werte: `flammen_modus` steckt in derselben Zeile,
+ * und die Flammen-Endpunkte brauchen ihn bei jedem Aufruf.
+ */
+export async function einstellungenVon(env, nutzerId) {
   const zeile = await env.DB.prepare(
-    "SELECT arbeit_min FROM fokus_einstellungen WHERE user_id = ?"
+    "SELECT arbeit_min, flammen_modus FROM fokus_einstellungen WHERE user_id = ?"
   ).bind(nutzerId).first();
-  return zeile ? zeile.arbeit_min : 25;
+  return {
+    arbeitMin: zeile ? zeile.arbeit_min : 25,
+    flammenModus: (zeile && zeile.flammen_modus) || FLAMMEN_MODUS_STANDARD,
+  };
+}
+
+// Standarddauer allein - der haeufigere Fall in den Timer-Pfaden.
+export async function arbeitMinVon(env, nutzerId) {
+  return (await einstellungenVon(env, nutzerId)).arbeitMin;
+}
+
+// Zaehlweise der Flamme allein - fuer die drei Gewohnheiten-Endpunkte.
+export async function flammenModusVon(env, nutzerId) {
+  return (await einstellungenVon(env, nutzerId)).flammenModus;
 }

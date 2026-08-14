@@ -13,8 +13,9 @@
 import { json, liesJson } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
 import {
-  pruefeHeute, pruefeLogDatum, status, flammenZahl, MAX_MENGE,
+  pruefeHeute, pruefeLogDatum, status, flammeFuer, MAX_MENGE,
 } from "../../_lib/tag.js";
+import { flammenModusVon } from "../../_lib/fokus.js";
 
 export async function onRequestPut({ request, env }) {
   const { nutzerId, fehler } = await nutzerOderFehler(request, env);
@@ -112,7 +113,7 @@ export async function onRequestPut({ request, env }) {
       menge: geloescht ? 0 : wert,
       ziel: zielDesTages,
       status: neuerStatus,
-      straehne: flammenZahl(gruene),
+      straehne: flammeFuer(gewohnheit, gruene, heute, await flammenModusVon(env, nutzerId)),
     });
   } catch (e) {
     return json({ error: "Datenbankfehler beim Speichern" }, 500);

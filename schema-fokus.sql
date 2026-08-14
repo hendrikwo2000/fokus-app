@@ -96,10 +96,13 @@ CREATE TABLE IF NOT EXISTS fokus_sitzungen (
   gewohnheit_id     TEXT REFERENCES gewohnheiten(id) ON DELETE SET NULL
 );
 
--- Standarddauer, damit man im Alltag nur "Start" druecken muss.
+-- Standarddauer, damit man im Alltag nur "Start" druecken muss - und die
+-- Zaehlweise der Flamme (siehe migration-flammen-modus.sql).
 CREATE TABLE IF NOT EXISTS fokus_einstellungen (
-  user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  arbeit_min  INTEGER NOT NULL DEFAULT 25
+  user_id       INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  arbeit_min    INTEGER NOT NULL DEFAULT 25,
+  flammen_modus TEXT NOT NULL DEFAULT 'absolut'
+                CHECK (flammen_modus IN ('absolut', 'reihe'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_gew_user   ON gewohnheiten(user_id, archiviert, position);

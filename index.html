@@ -301,6 +301,21 @@
       </label>
     </div>
 
+    <!-- Zaehlweise der Flamme. Der Hinweis darunter ist die EINZIGE Stelle,
+         an der die beiden Bedeutungen erklaert werden - auf der Karte selbst
+         steht in beiden Faellen nur "🔥 <Zahl> Tage" (Hendriks Vorgabe: die
+         Anzeige soll gleich aussehen, nur die Zahl anders sein). -->
+    <div class="ein-abschnitt ein-zeile" data-abschnitt="flammen">
+      <span class="ein-kopf-icon">🔥</span>
+      <span class="ein-kopf-text">Flamme zählt</span>
+      <label class="switch" id="flammenSwitchWrap">
+        <input type="checkbox" id="flammenSwitch">
+        <span class="switch-track"><span class="switch-thumb"></span></span>
+        <span class="switch-label" id="flammenSwitchLabel">Insgesamt</span>
+      </label>
+    </div>
+    <p class="hinweis" id="flammenHinweis"></p>
+
     <div class="ein-abschnitt ein-zeile" data-abschnitt="benachrichtigungen">
       <span class="ein-kopf-icon">🔔</span>
       <span class="ein-kopf-text">Benachrichtigungen</span>

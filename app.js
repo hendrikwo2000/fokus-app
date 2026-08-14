@@ -18,6 +18,9 @@ const state = {
   gewohnheiten: [],
   logs: {},        // { gewohnheitId: { "2026-08-07": {menge, ziel, status} } }
   straehnen: {},
+  // "absolut" (erledigte Tage insgesamt) oder "reihe" (Tage am Stueck).
+  // Kommt vom Server, umschaltbar in den Einstellungen.
+  flammenModus: "absolut",
   historieAb: "", heute: "",
   email: "", name: "",
 };
@@ -71,13 +74,10 @@ function formatDatum(iso) {
 /**
  * Zahl mit passender Einheit.
  *
- * Zwei Faelle, die im Deutschen auseinandergehen: "2 Tage geschafft" steht fuer
- * sich (Nominativ), "5 von 14 Tagen" steht hinter "von" (Dativ). Ohne die
+ * Zwei Faelle, die im Deutschen auseinandergehen: "🔥 2 Tage" steht fuer sich
+ * (Nominativ), "5 von 14 Tagen" steht hinter "von" (Dativ). Ohne die
  * Unterscheidung liest sich das eine oder das andere falsch.
  * Der Schluessel ist die Mehrzahl, weil statistik.js sie so schickt.
- *
- * Die Flamme laeuft NICHT hierueber: sie zaehlt seit dem 14.08.2026 in "Mal",
- * und das beugt sich nicht.
  */
 const EINHEIT_FORMEN = {
   Tage: { eins: "Tag", viele: "Tage", vieleDativ: "Tagen" },
@@ -553,6 +553,9 @@ function uebernimmStand(d) {
   state.email = d.email;
   state.name = d.name;
   state.todoZugang = d.todoZugang;
+  // Aus einem alten gemerkten Stand fehlt das Feld - dann die Vorgabe, sonst
+  // stuende der Schalter beim Offline-Start auf "leer".
+  state.flammenModus = d.flammenModus || "absolut";
   return true;
 }
 
@@ -628,6 +631,14 @@ function tagVon(gewohnheitId, datum) {
 // in functions/_lib/tag.js.
 function istObergrenze(gewohnheit) {
   return gewohnheit.typ === "menge" && gewohnheit.richtung === "hoechstens";
+}
+
+// Einheit hinter der Flammen-Zahl - Spiegel von flammenEinheit() in
+// functions/_lib/tag.js. Fast immer "Tage"; nur "X Mal die Woche" zaehlt im
+// Reihen-Modus ganze WOCHEN, sonst stuende "1 Tage" fuer eine volle Woche da.
+function flammenEinheitVon(gewohnheit) {
+  return (state.flammenModus === "reihe" && gewohnheit.rhythmus === "x_pro_woche")
+    ? "Wochen" : "Tage";
 }
 
 /**
@@ -881,11 +892,12 @@ function renderHeute() {
     const straehne = state.straehnen[g.id] || 0;
     const st = document.createElement("span");
     st.className = "straehne" + (straehne > 0 ? " aktiv" : "");
-    // "Mal", nicht "Tage": die Flamme zaehlt seit dem 14.08.2026 alle
-    // erledigten Tage zusammen, nicht die am Stueck (flammenZahl in
-    // functions/_lib/tag.js). "3 Tage" haette weiter nach einer Kette
-    // geklungen - und der Rhythmus spielt keine Rolle mehr.
-    st.textContent = straehne > 0 ? `🔥 ${straehne} Mal` : "keine Flamme";
+    // Bewusst OHNE Hinweis auf die Zaehlweise: die Karte sieht in beiden Modi
+    // gleich aus, nur die Zahl ist eine andere (Hendriks Vorgabe). Erklaert
+    // wird der Unterschied allein beim Schalter in den Einstellungen.
+    st.textContent = straehne > 0
+      ? `🔥 ${mitEinheit(straehne, flammenEinheitVon(g))}`
+      : "keine Flamme";
     zeile.appendChild(st);
 
     // Offline abgehakt und noch nicht beim Server. Die Karte zeigt trotzdem
@@ -1042,7 +1054,8 @@ async function setzeTag(gewohnheit, datum, menge, loeschen = false) {
   // Nur melden, wenn die Flamme durch einen NACHGETRAGENEN Tag gewachsen
   // ist - beim normalen Abhaken von heute sieht man die Zahl ohnehin.
   if (datum !== state.heute && d.straehne > vorher) {
-    melde(`${formatDatum(datum)} nachgetragen — Flamme jetzt ${d.straehne} Mal`);
+    melde(`${formatDatum(datum)} nachgetragen — Flamme jetzt `
+      + mitEinheit(d.straehne, flammenEinheitVon(gewohnheit)));
   }
   return true;
 }
@@ -2063,12 +2076,51 @@ $("einstellungenBtn").onclick = () => {
   $("einKontoMail").textContent = state.email;
   renderReihenfolge();
   renderArchiv();
+  zeichneFlammenSchalter();
   aktualisierePushSchalter();
   aktualisiereEinSubtexte();
   resetAkkordeon();
   $("einPopup").hidden = false;
 };
 $("einSchliessen").onclick = () => { $("einPopup").hidden = true; };
+
+/**
+ * Der Schalter fuer die Zaehlweise der Flamme.
+ *
+ * Angehakt = "In Reihe". Der Hinweistext darunter ist die einzige Stelle, an
+ * der die beiden Bedeutungen erklaert werden - deshalb nennt er ausdruecklich
+ * die Folge eines Fehltags, nicht nur den Namen.
+ */
+function zeichneFlammenSchalter() {
+  const reihe = state.flammenModus === "reihe";
+  $("flammenSwitch").checked = reihe;
+  $("flammenSwitchLabel").textContent = reihe ? "In Reihe" : "Insgesamt";
+  $("flammenHinweis").textContent = reihe
+    ? "Tage am Stück. Ein ausgelassener Tag setzt die Flamme zurück auf null."
+    : "Alle erledigten Tage zusammen. Ein ausgelassener Tag kostet nichts, er bringt nur nichts.";
+}
+
+$("flammenSwitch").onchange = async () => {
+  const neu = $("flammenSwitch").checked ? "reihe" : "absolut";
+  const antwort = await api("/api/fokus/einstellungen", {
+    method: "PUT",
+    body: JSON.stringify({ flammenModus: neu }),
+  });
+  if (!antwort.ok) {
+    // Zurueckstellen, sonst zeigt der Schalter etwas an, was nicht gespeichert
+    // ist - und beim naechsten Laden springt er unerklaerlich zurueck.
+    $("flammenSwitch").checked = state.flammenModus === "reihe";
+    melde(antwort.daten.error || "Speichern fehlgeschlagen");
+    return;
+  }
+  state.flammenModus = antwort.daten.flammenModus;
+  // Alle Zahlen neu holen: die Umstellung aendert jede einzelne, und die
+  // Rechnung gehoert dem Server. Der Bootstrap ist dafuer der einzige Weg.
+  await ladeGewohnheiten();
+  zeichneFlammenSchalter();
+  renderHeute();
+  renderVerlauf();
+};
 
 $("einDauerSpeichern").onclick = async () => {
   const arbeitMin = Number($("einDauer").value);

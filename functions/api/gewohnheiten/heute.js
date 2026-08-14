@@ -17,9 +17,10 @@
 import { json } from "../../_lib/antwort.js";
 import { nutzerOderFehler } from "../../_lib/zugang.js";
 import {
-  pruefeHeute, status, flammenZahl, istObergrenze,
+  pruefeHeute, status, flammeFuer, flammenEinheit, istObergrenze,
 } from "../../_lib/tag.js";
 import { istHeuteDran, ruhtHeute, erledigtDieseWoche } from "../../_lib/heute.js";
+import { flammenModusVon } from "../../_lib/fokus.js";
 
 export async function onRequestGet({ request, env }) {
   const { nutzerId, fehler } = await nutzerOderFehler(request, env);
@@ -66,6 +67,7 @@ export async function onRequestGet({ request, env }) {
       };
     }
 
+    const flammenModus = await flammenModusVon(env, nutzerId);
     const liste = [];
     const wochenFertig = [];
 
@@ -105,12 +107,11 @@ export async function onRequestGet({ request, env }) {
         menge: heutiger ? heutiger.menge : 0,
         ziel,
         zustand,
-        straehne: flammenZahl(gruene),
-        // Seit dem 14.08.2026 immer "Mal": die Flamme zaehlt keine Kette mehr,
-        // sondern Treffer. "3 Tage" haette weiter nach "am Stueck" geklungen.
-        // Das Feld bleibt trotzdem stehen - die ToDo-Liste deployt getrennt,
-        // und solange sie eine Einheit erwartet, soll sie eine bekommen.
-        straehneEinheit: "Mal",
+        straehne: flammeFuer(g, gruene, heute, flammenModus),
+        // Fast immer "Tage" - nur 'x_pro_woche' im Reihen-Modus zaehlt WOCHEN
+        // (siehe flammenEinheit in _lib/tag.js). Die ToDo-Liste raet die
+        // Einheit nicht, sondern bekommt sie von hier.
+        straehneEinheit: flammenEinheit(g, flammenModus),
         wochenziel: g.rhythmus === "x_pro_woche" ? g.wochenziel : null,
         wochenErledigt: g.rhythmus === "x_pro_woche" ? erledigtDieseWoche(g, tage, heute) : null,
       });
