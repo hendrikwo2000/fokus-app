@@ -1,3 +1,0 @@
-# Reines Eigennutz-Werkzeug - hier gibt es nichts zu finden.
-User-agent: *
-Disallow: /

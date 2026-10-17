@@ -1,5 +1,13 @@
 # Betrieb
 
+> **Seit Oktober 2026 Geschichte als eigene App.** Der Fokus-Tracker ist in
+> der ToDo-Liste aufgegangen, `fokus.it-wolf.org` leitet nur noch weiter
+> (`functions/[[pfad]].js`). Diese Doku bleibt als Nachschlagewerk: die
+> Regeln (Flamme, Obergrenze, „ruht“, Rhythmus, Statistik) gelten unverändert
+> für den Code in `ToDo/web`. Alles zu Anmeldung, Warteliste, eigenem Push,
+> Service Worker und Deployment hier ist überholt — dafür gilt
+> `ToDo/web/BETRIEB.md`, Kapitel „Gewohnheiten und Timer“.
+
 Technische Doku zum Fokus-Tracker (`fokus.it-wolf.org`). Für die Bedienung
 siehe [README.md](README.md).
 
