@@ -7,8 +7,9 @@ Kalender-Streifen (Reiter „Gewohnheiten“ und „Timer“) und im Fenster
 „Gewohnheiten“. Deine Daten sind dieselben, sie lagen schon immer in derselben
 Datenbank.
 
-`fokus.it-wolf.org` leitet dorthin weiter. Das erledigt
-`functions/[[pfad]].js`; alles andere aus diesem Repo ist entfernt. Den Stand
+`fokus.it-wolf.org` hat bis zum 21.11.2026 dorthin weitergeleitet, mit
+`functions/[[pfad]].js` (alles andere aus diesem Repo ist entfernt). Seitdem
+ist das Pages-Projekt gelöscht und dieses Repo archiviert. Den Stand
 der eigenständigen App findest du in der Git-Historie (letzter Stand vor dem
 Umzug: Commit `63354a3`).
 
